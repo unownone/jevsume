@@ -41,11 +41,12 @@ pnpm db:migrate:local   # apply D1 migrations to the local SQLite file
 
 ```bash
 pnpm build
-npx wrangler d1 create jevsume   # once; paste database_id into wrangler.jsonc
-npx wrangler d1 migrations apply jevsume --remote
+npx wrangler d1 migrations apply jevsume --remote   # after first deploy creates the DB
 npx wrangler secret put TYPESAFE_API_KEY
 npx wrangler deploy
 ```
+
+Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` because `database_id` is omitted. Apply migrations once after the first successful deploy.
 
 `wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, and a D1 binding `DB` (`jevsume`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
 

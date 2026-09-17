@@ -25,9 +25,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      // Replace database_id after: npx wrangler d1 create jevsume
       "database_name": "jevsume",
-      "database_id": "00000000-0000-4000-8000-000000000001",
       "migrations_dir": "migrations"
     }
   ]

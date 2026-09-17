@@ -1,17 +1,10 @@
+# Cloudflare Workers Builds uses pnpm 10.11.1, which requires `packages`.
+# onlyBuiltDependencies = pnpm 10; allowBuilds = pnpm 11.
 packages:
-  - "."
-
+  - .
+onlyBuiltDependencies:
+  - esbuild
+  - workerd
 allowBuilds:
   esbuild: true
   workerd: true
-
-minimumReleaseAgeExclude:
-  - '@cloudflare/vite-plugin@1.55.0'
-  - '@cloudflare/workerd-darwin-64@1.20260917.1'
-  - '@cloudflare/workerd-darwin-arm64@1.20260917.1'
-  - '@cloudflare/workerd-linux-64@1.20260917.1'
-  - '@cloudflare/workerd-linux-arm64@1.20260917.1'
-  - '@cloudflare/workerd-windows-64@1.20260917.1'
-  - miniflare@5.20260917.0-alpha
-  - workerd@1.20260917.1
-  - wrangler@4.134.0
