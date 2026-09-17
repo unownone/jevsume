@@ -5,9 +5,10 @@ import { HTTPException } from "hono/http-exception";
 import { TypeSafeHttpError } from "../packages/jev/http.ts";
 import { DEFAULT_PERSONA_ID } from "../packages/jev/index.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
-import { MemoryPersonaStore, MemoryResumeStore, MemoryVisitorStore } from "./storage/memory.ts";
-import { R2PersonaStore, R2ResumeStore, R2VisitorStore } from "./storage/r2.ts";
-import type { PersonaStore, ResumeStore, VisitorStore } from "./storage/types.ts";
+import { createD1Stores } from "./storage/d1.ts";
+import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
+import type { EvalListFilter, ReviewStores, VisitorStore } from "./storage/types.ts";
+import { isEvalKind } from "./storage/types.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
@@ -48,6 +49,23 @@ function tooLarge(text: string): boolean {
   return text.length > MAX_RESUME_CHARS;
 }
 
+function queryString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function queryNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function queryLimit(value: string | undefined): number | undefined {
+  return queryNumber(value);
+}
+
 function workerFetch(): typeof fetch {
   return globalThis.fetch.bind(globalThis);
 }
@@ -69,23 +87,11 @@ function isVisitorId(value: string): boolean {
   return /^[A-Za-z0-9._-]{8,128}$/.test(value);
 }
 
-export function createStores(env: CloudflareBindings): {
-  personas: PersonaStore;
-  resumes: ResumeStore;
-  visitors: VisitorStore;
-} {
-  if (env.PERSONAS) {
-    return {
-      personas: new R2PersonaStore(env.PERSONAS),
-      resumes: new R2ResumeStore(env.PERSONAS),
-      visitors: new R2VisitorStore(env.PERSONAS),
-    };
+export function createStores(env: CloudflareBindings): ReviewStores {
+  if (env.DB) {
+    return createD1Stores(env.DB);
   }
-  return {
-    personas: new MemoryPersonaStore(),
-    resumes: new MemoryResumeStore(),
-    visitors: new MemoryVisitorStore(),
-  };
+  return createMemoryStores();
 }
 
 function runtimeForEnv(env: CloudflareBindings): EnvRuntime {
@@ -95,7 +101,7 @@ function runtimeForEnv(env: CloudflareBindings): EnvRuntime {
   }
   const stores = createStores(env);
   const runtime: EnvRuntime = {
-    engine: new ReviewEngine(createProvider(env, workerFetch()), stores.personas, stores.resumes),
+    engine: new ReviewEngine(createProvider(env, workerFetch()), stores),
     visitors: stores.visitors,
   };
   runtimeByEnv.set(env, runtime);
@@ -162,6 +168,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json({
       ok: true,
       provider: engine.providerId(),
+      storage: engine.storageKind(),
       time: new Date().toISOString(),
     });
   });
@@ -210,7 +217,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/personas", async (c) => {
-    const items = await c.get("engine").listPersonas();
+    const items = await c.get("engine").listPersonas({
+      q: queryString(c.req.query("q")),
+      tag: queryString(c.req.query("tag")),
+      limit: queryLimit(c.req.query("limit")),
+    });
     return c.json({
       items: items.map((persona) => ({
         id: persona.id,
@@ -242,12 +253,41 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json(stored, 201);
   });
 
+  app.get("/api/resumes", async (c) => {
+    const items = await c.get("engine").listResumes({
+      q: queryString(c.req.query("q")),
+      source: queryString(c.req.query("source")),
+      limit: queryLimit(c.req.query("limit")),
+    });
+    return c.json({
+      items: items.map((resume) => ({
+        id: resume.id,
+        filename: resume.filename,
+        source: resume.source,
+        contentHash: resume.contentHash,
+        charCount: resume.charCount,
+        createdAt: resume.createdAt,
+      })),
+    });
+  });
+
+  app.get("/api/resumes/:id", async (c) => {
+    const resume = await c.get("engine").getResume(c.req.param("id"));
+    if (!resume) {
+      throw new HTTPException(404, { message: "Resume not found" });
+    }
+    return c.json(resume);
+  });
+
   app.post("/api/reviews", async (c) => {
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
     const personaId = readString(body.personaId)?.trim();
-    const review = await c.get("engine").review(resumeText, personaId);
+    const review = await c.get("engine").review(resumeText, personaId, {
+      filename: readString(body.filename),
+      source: readString(body.source),
+    });
     if ("error" in review) {
       throw new HTTPException(404, { message: "Persona not found" });
     }
@@ -259,11 +299,47 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const resumeText = requiredString(body, "resumeText");
     const personaId = requiredString(body, "personaId");
     assertResumeSize(resumeText, "resume text");
-    const review = await c.get("engine").jobReview(resumeText, personaId);
+    const review = await c.get("engine").jobReview(resumeText, personaId, {
+      filename: readString(body.filename),
+      source: readString(body.source),
+    });
     if ("error" in review) {
       throw new HTTPException(404, { message: "Persona not found" });
     }
     return c.json(review);
+  });
+
+  app.get("/api/evals", async (c) => {
+    const kindParam = queryString(c.req.query("kind"));
+    if (kindParam !== undefined && !isEvalKind(kindParam)) {
+      throw new HTTPException(400, {
+        message: "kind must be general_review, job_review, or persona_build",
+      });
+    }
+    const providerParam = queryString(c.req.query("provider"));
+    if (providerParam !== undefined && providerParam !== "jev" && providerParam !== "mock") {
+      throw new HTTPException(400, { message: "provider must be jev or mock" });
+    }
+    const filter: EvalListFilter = {
+      kind: kindParam,
+      resumeId: queryString(c.req.query("resumeId")),
+      personaId: queryString(c.req.query("personaId")),
+      provider: providerParam,
+      promptHash: queryString(c.req.query("promptHash")),
+      minScore: queryNumber(c.req.query("minScore")),
+      maxScore: queryNumber(c.req.query("maxScore")),
+      limit: queryLimit(c.req.query("limit")),
+    };
+    const items = await c.get("engine").listEvals(filter);
+    return c.json({ items });
+  });
+
+  app.get("/api/evals/:id", async (c) => {
+    const run = await c.get("engine").getEval(c.req.param("id"));
+    if (!run) {
+      throw new HTTPException(404, { message: "Eval run not found" });
+    }
+    return c.json(run);
   });
 
   return app;

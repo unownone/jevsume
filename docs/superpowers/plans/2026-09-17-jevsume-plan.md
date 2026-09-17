@@ -4,7 +4,7 @@
 
 **Goal:** Ship an ATS-friendly resume reviewer (general + per-job JevScore) on Cloudflare Workers + Vite + Hono, with an isolated JEV prompt module.
 
-**Architecture:** Client extracts resume text; Worker groups it, runs TypeSafe SystemOne (Jev) or a mock adapter, transforms typed answers into DTOs. Job personas are JEV-native state + compiled questions stored in R2.
+**Architecture:** Client extracts resume text; Worker groups it, runs TypeSafe SystemOne (Jev) or a mock adapter, transforms typed answers into DTOs. Job personas are JEV-native state + compiled questions stored in D1, alongside resumes and full evaluation traces (input, prompt, output).
 
 **Tech Stack:** React 19, Vite, `@cloudflare/vite-plugin`, Hono, Wrangler, Vitest, pdfjs-dist, mammoth, TypeSafe HTTP `POST /v1/systemone`.
 
@@ -30,7 +30,7 @@
 | --- | --- |
 | `packages/jev/*` | Questions, HTTP/mock client, transformers, JevScore, DTOs |
 | `worker/ats/group.ts` | Deterministic ATS-like grouping |
-| `worker/storage/*` | Persona/resume repository (R2 + memory) |
+| `worker/storage/*` | Persona/resume/eval repository (D1 + memory) |
 | `worker/engine.ts` | Review + persona-build orchestration |
 | `worker/app.ts` | Hono router |
 | `worker/index.ts` | Worker export |

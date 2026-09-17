@@ -1,6 +1,6 @@
 # JEV module seam
 
-All TypeSafe/JEV prompt material lives in `packages/jev`. The Worker imports it. The React app consumes **HTTP DTOs only**.
+All TypeSafe/JEV prompt material lives in `packages/jev`. The Worker imports it. The React app consumes **HTTP DTOs only**. Evaluation traces (input, prompt, output) are persisted in D1 so prompt changes can be scored later.
 
 ```
 packages/jev
@@ -16,4 +16,4 @@ packages/jev
 
 To extract later: copy `packages/jev` into its own package; Worker already depends only on the public exports (`evaluate`, `build*Questions`, `transform*`, types).
 
-To add another model later: implement `JudgmentProvider` and select it in `worker/engine.ts`. Do not scatter prompt strings into UI.
+To add another model later: implement `JudgmentProvider` and select it in `worker/engine.ts`. Do not scatter prompt strings into UI. The Worker still stores the compiled `questions` JSON on each eval run.

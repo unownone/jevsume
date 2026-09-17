@@ -7,6 +7,9 @@ export type TextSpan = {
 };
 
 export type ReviewResponse = {
+  id?: string;
+  resumeId?: string;
+  personaId?: string;
   mode: "general" | "job";
   jevScore: {
     value: number;
@@ -128,5 +131,54 @@ export async function recordVisitor(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ visitorId }),
   });
+  return parseJson(response);
+}
+
+export type EvalKind = "general_review" | "job_review" | "persona_build";
+
+export type EvalRunSummary = {
+  id: string;
+  kind: EvalKind;
+  resumeId: string | null;
+  personaId: string | null;
+  provider: "jev" | "mock";
+  model: string | null;
+  jevScore: number | null;
+  promptHash: string;
+  createdAt: string;
+};
+
+export type EvalRun = EvalRunSummary & {
+  input: unknown;
+  prompt: Record<string, unknown>;
+  output: { model?: string; answers: Record<string, unknown> };
+  review: ReviewResponse | null;
+};
+
+export async function listEvals(filter: {
+  kind?: EvalKind;
+  resumeId?: string;
+  personaId?: string;
+  provider?: "jev" | "mock";
+  promptHash?: string;
+  minScore?: number;
+  maxScore?: number;
+} = {}): Promise<EvalRunSummary[]> {
+  const params = new URLSearchParams();
+  if (filter.kind) params.set("kind", filter.kind);
+  if (filter.resumeId) params.set("resumeId", filter.resumeId);
+  if (filter.personaId) params.set("personaId", filter.personaId);
+  if (filter.provider) params.set("provider", filter.provider);
+  if (filter.promptHash) params.set("promptHash", filter.promptHash);
+  if (filter.minScore !== undefined) params.set("minScore", String(filter.minScore));
+  if (filter.maxScore !== undefined) params.set("maxScore", String(filter.maxScore));
+  const query = params.toString();
+  const response = await fetch(query ? `/api/evals?${query}` : "/api/evals");
+  const body = await parseJson<{ items: EvalRunSummary[] }>(response);
+  return body.items;
+}
+
+export async function getEval(id: string): Promise<EvalRun> {
+  const response = await fetch(`/api/evals/${id}`);
   return parseJson(response);
 }
