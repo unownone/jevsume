@@ -42,7 +42,7 @@ One resume is evaluated against **one** job persona per request.
 │  routes → review engine → storage repo → JEV provider       │
 └──────────────┬───────────────────────────┬──────────────────┘
                │                           │
-        R2 PERSONAS                 JudgmentProvider
+        D1 DB                        JudgmentProvider
         (memory fallback)           ├─ TypeSafeHttpAdapter (Jev)
                                     └─ MockJudgmentAdapter
 ```
@@ -52,7 +52,7 @@ One resume is evaluated against **one** job persona per request.
 | Module | Interface callers see | Hidden implementation |
 | --- | --- | --- |
 | `packages/jev` | `evaluate(state, questions)`, transformers, DTOs, prompt builders | HTTP, mock heuristics, question JSON |
-| `PersonaStore` | `create` / `get` / `list` | R2 JSON objects or in-memory map |
+| `PersonaStore` / `ResumeStore` / `EvalStore` | `create` / `get` / `list` (plus eval get by id) | D1 SQL or in-memory maps |
 | `ReviewEngine` | `generalReview(text)` / `jobReview(text, persona)` | grouping, JEV calls, JevScore weights |
 | Hono app | HTTP | wiring only |
 
@@ -292,11 +292,15 @@ All JSON. Size cap: 120_000 characters of resume text (under TypeSafe ~150k char
 | --- | --- | --- | --- |
 | GET | `/api/health` | — | `{ ok, provider, time }` |
 | POST | `/api/personas` | `{ title, jobDescription, tags? }` | persona |
-| GET | `/api/personas` | — | `{ items }` (ids, titles, tags) |
+| GET | `/api/personas` | `?q=&tag=` | `{ items }` (ids, titles, tags) |
 | GET | `/api/personas/:id` | — | persona (no internal question JSON required) |
-| POST | `/api/resumes` | `{ text, filename?, source? }` | `{ id, chars, sections }` optional persist |
-| POST | `/api/reviews` | `{ resumeText }` | `ReviewResponse` general |
-| POST | `/api/reviews/job` | `{ resumeText, personaId }` | `ReviewResponse` job |
+| POST | `/api/resumes` | `{ text, filename?, source? }` | `{ id, chars, sections, contentHash }` |
+| GET | `/api/resumes` | `?q=&source=` | resume summaries |
+| GET | `/api/resumes/:id` | — | stored resume including text |
+| POST | `/api/reviews` | `{ resumeText }` | `ReviewResponse` general (also persisted as eval) |
+| POST | `/api/reviews/job` | `{ resumeText, personaId }` | `ReviewResponse` job (also persisted as eval) |
+| GET | `/api/evals` | `kind`, `resumeId`, `personaId`, `provider`, `promptHash`, `minScore`, `maxScore` | eval summaries |
+| GET | `/api/evals/:id` | — | full eval: input, prompt, output, review |
 
 Errors: `400` validation, `404` persona missing, `413` payload too large, `502` JEV upstream.
 
@@ -304,9 +308,16 @@ Errors: `400` validation, `404` persona missing, `413` payload too large, `502` 
 
 ## 6. Storage
 
-- **Personas:** R2 binding `PERSONAS`, keys `personas/{id}.json`.
-- **Resumes:** optional R2 `resumes/{id}.json` (same bucket prefix) — text only, no files.
-- **Repository seam:** `PersonaStore` with `R2PersonaStore` + `MemoryPersonaStore` if binding absent.
+- **D1** binding `DB`, database name `jevsume`, schema in `migrations/`.
+- **Resumes:** `resumes` table keyed by `id`, unique `content_hash` for upsert, list/search by text/source.
+- **Personas:** `personas` plus `persona_tags` for tag lookups. Full object remains JSON-compatible (`tags_json`, `requirements_json`).
+- **Eval runs:** every JEV/mock call (`general_review`, `job_review`, `persona_build`) stores:
+  - `input_json` — SystemOne state (resume + persona)
+  - `prompt_json` — compiled questions
+  - `output_json` — raw SystemOne answers
+  - `review_json` — transformed `ReviewResponse` (null for persona build)
+  - `prompt_hash`, `jev_score`, `provider`, `model` for later comparisons
+- **Repository seam:** `PersonaStore` / `ResumeStore` / `EvalStore` with `D1*` implementations and in-memory fallback when `DB` is absent.
 
 IDs: `crypto.randomUUID()`.
 
@@ -333,7 +344,7 @@ Client extract:
 ## 8. Cloudflare project shape
 
 - `pnpm`
-- `wrangler.jsonc`: name `jevsume`, `compatibility_date` `2026-09-17`, `nodejs_compat`, observability, R2 `PERSONAS`, `main: worker/index.ts`, SPA assets, `run_worker_first: ["/api/*"]`
+- `wrangler.jsonc`: name `jevsume`, `compatibility_date` `2026-09-17`, `nodejs_compat`, observability, D1 `DB`, `main: worker/index.ts`, SPA assets, `run_worker_first: ["/api/*"]`
 - `.dev.vars.example` with `TYPESAFE_API_KEY=`
 - `wrangler types --env-interface CloudflareBindings`
 - Scripts: `dev`, `build`, `preview`, `deploy`, `test`, `typecheck`
