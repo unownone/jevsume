@@ -1,0 +1,65 @@
+-- Relational store for personas, resumes, and evaluation runs.
+-- JSON columns keep the full JEV request/response so we can score prompts later.
+
+CREATE TABLE resumes (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  filename TEXT,
+  source TEXT,
+  content_hash TEXT NOT NULL,
+  char_count INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE UNIQUE INDEX idx_resumes_content_hash ON resumes(content_hash);
+CREATE INDEX idx_resumes_created_at ON resumes(created_at);
+CREATE INDEX idx_resumes_source ON resumes(source);
+
+CREATE TABLE personas (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  tags_json TEXT NOT NULL,
+  job_description TEXT NOT NULL,
+  requirements_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX idx_personas_created_at ON personas(created_at);
+CREATE INDEX idx_personas_title ON personas(title);
+
+CREATE TABLE persona_tags (
+  persona_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (persona_id, tag),
+  FOREIGN KEY (persona_id) REFERENCES personas(id)
+) STRICT;
+
+CREATE INDEX idx_persona_tags_tag ON persona_tags(tag);
+
+CREATE TABLE eval_runs (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  resume_id TEXT,
+  persona_id TEXT,
+  provider TEXT NOT NULL,
+  model TEXT,
+  jev_score INTEGER,
+  prompt_hash TEXT NOT NULL,
+  input_json TEXT NOT NULL,
+  prompt_json TEXT NOT NULL,
+  output_json TEXT NOT NULL,
+  review_json TEXT,
+  usage_input_tokens INTEGER,
+  usage_output_tokens INTEGER,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (resume_id) REFERENCES resumes(id),
+  FOREIGN KEY (persona_id) REFERENCES personas(id)
+) STRICT;
+
+CREATE INDEX idx_eval_runs_kind ON eval_runs(kind);
+CREATE INDEX idx_eval_runs_resume ON eval_runs(resume_id);
+CREATE INDEX idx_eval_runs_persona ON eval_runs(persona_id);
+CREATE INDEX idx_eval_runs_created ON eval_runs(created_at);
+CREATE INDEX idx_eval_runs_score ON eval_runs(jev_score);
+CREATE INDEX idx_eval_runs_provider ON eval_runs(provider);
+CREATE INDEX idx_eval_runs_prompt_hash ON eval_runs(prompt_hash);

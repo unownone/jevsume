@@ -22,10 +22,11 @@
     "TYPESAFE_MODEL": "jev-latest",
     "TYPESAFE_BASE_URL": "https://api.typesafe.ai"
   },
-  "r2_buckets": [
+  "d1_databases": [
     {
-      "binding": "PERSONAS",
-      "bucket_name": "jevsume-personas"
+      "binding": "DB",
+      "database_name": "jevsume",
+      "migrations_dir": "migrations"
     }
   ]
 }
