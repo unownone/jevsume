@@ -13,8 +13,10 @@ Jev does not generate prose. Scores, verdicts, and probabilities come from Syste
 
 - React + Vite SPA via [`@cloudflare/vite-plugin`](https://developers.cloudflare.com/workers/vite-plugin/)
 - Hono API on a Cloudflare Worker (`/api/*`)
-- R2 for personas (in-memory fallback when the binding is absent)
+- **D1** for personas, resumes, and evaluation runs (in-memory fallback when the binding is absent)
 - Isolated JEV module: [`packages/jev`](packages/jev) — see [`docs/architecture-jev.md`](docs/architecture-jev.md)
+
+Every JEV call stores **resume**, **input state**, **prompt/questions**, and **raw + transformed output** so you can look up runs later and score prompt changes.
 
 ## Setup
 
@@ -32,18 +34,30 @@ Open the Vite URL (usually `http://localhost:5173`). Without `TYPESAFE_API_KEY`,
 pnpm test
 pnpm typecheck
 pnpm cf-typegen   # wrangler types --env-interface CloudflareBindings
+pnpm db:migrate:local   # apply D1 migrations to the local SQLite file
 ```
 
 ## Deploy
 
 ```bash
 pnpm build
-npx wrangler r2 bucket create jevsume-personas   # once
+npx wrangler d1 create jevsume   # once; paste database_id into wrangler.jsonc
+npx wrangler d1 migrations apply jevsume --remote
 npx wrangler secret put TYPESAFE_API_KEY
 npx wrangler deploy
 ```
 
-`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, and observability.
+`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, and a D1 binding `DB` (`jevsume`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
+
+Lookup APIs (summaries on list, full prompt/input/output on get):
+
+| Method | Path | Use |
+| --- | --- | --- |
+| GET | `/api/resumes?q=&source=` | Find stored resumes |
+| GET | `/api/resumes/:id` | Full resume text |
+| GET | `/api/personas?q=&tag=` | Find personas |
+| GET | `/api/evals?kind=&resumeId=&personaId=&provider=&promptHash=&minScore=&maxScore=` | Find evaluation runs |
+| GET | `/api/evals/:id` | Full input, prompt, output, review |
 
 ## Secrets
 

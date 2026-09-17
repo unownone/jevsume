@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
-import { MemoryPersonaStore, MemoryResumeStore } from "./storage/memory.ts";
-import { R2PersonaStore, R2ResumeStore } from "./storage/r2.ts";
-import type { PersonaStore, ResumeStore } from "./storage/types.ts";
+import { createD1Stores } from "./storage/d1.ts";
+import { createMemoryStores } from "./storage/memory.ts";
+import type { EvalListFilter, ReviewStores } from "./storage/types.ts";
+import { isEvalKind } from "./storage/types.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
@@ -35,20 +36,28 @@ function tooLarge(text: string): boolean {
   return text.length > MAX_RESUME_CHARS;
 }
 
-export function createStores(env: CloudflareBindings): {
-  personas: PersonaStore;
-  resumes: ResumeStore;
-} {
-  if (env.PERSONAS) {
-    return {
-      personas: new R2PersonaStore(env.PERSONAS),
-      resumes: new R2ResumeStore(env.PERSONAS),
-    };
+function queryString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function queryNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
   }
-  return {
-    personas: new MemoryPersonaStore(),
-    resumes: new MemoryResumeStore(),
-  };
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function queryLimit(value: string | undefined): number | undefined {
+  return queryNumber(value);
+}
+
+export function createStores(env: CloudflareBindings): ReviewStores {
+  if (env.DB) {
+    return createD1Stores(env.DB);
+  }
+  return createMemoryStores();
 }
 
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
@@ -58,7 +67,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.use("/api/*", async (c, next) => {
     if (!options.engine) {
       const stores = createStores(c.env);
-      const engine = new ReviewEngine(createProvider(c.env), stores.personas, stores.resumes);
+      const engine = new ReviewEngine(createProvider(c.env), stores);
       c.set("engine", engine);
     } else {
       c.set("engine", options.engine);
@@ -71,6 +80,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json({
       ok: true,
       provider: engine.providerId(),
+      storage: engine.storageKind(),
       time: new Date().toISOString(),
     });
   });
@@ -99,7 +109,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
 
   app.get("/api/personas", async (c) => {
     const engine = c.get("engine");
-    const items = await engine.listPersonas();
+    const items = await engine.listPersonas({
+      q: queryString(c.req.query("q")),
+      tag: queryString(c.req.query("tag")),
+      limit: queryLimit(c.req.query("limit")),
+    });
     return c.json({
       items: items.map((persona) => ({
         id: persona.id,
@@ -141,6 +155,34 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json(stored, 201);
   });
 
+  app.get("/api/resumes", async (c) => {
+    const engine = c.get("engine");
+    const items = await engine.listResumes({
+      q: queryString(c.req.query("q")),
+      source: queryString(c.req.query("source")),
+      limit: queryLimit(c.req.query("limit")),
+    });
+    return c.json({
+      items: items.map((resume) => ({
+        id: resume.id,
+        filename: resume.filename,
+        source: resume.source,
+        contentHash: resume.contentHash,
+        charCount: resume.charCount,
+        createdAt: resume.createdAt,
+      })),
+    });
+  });
+
+  app.get("/api/resumes/:id", async (c) => {
+    const engine = c.get("engine");
+    const resume = await engine.getResume(c.req.param("id"));
+    if (!resume) {
+      return c.json({ error: "Resume not found" }, 404);
+    }
+    return c.json(resume);
+  });
+
   app.post("/api/reviews", async (c) => {
     const body: unknown = await c.req.json().catch(() => null);
     if (!isRecord(body)) {
@@ -154,7 +196,10 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       return c.json({ error: "resume text exceeds size limit" }, 413);
     }
     const engine = c.get("engine");
-    const review = await engine.generalReview(resumeText);
+    const review = await engine.generalReview(resumeText, {
+      filename: readString(body.filename),
+      source: readString(body.source),
+    });
     return c.json(review);
   });
 
@@ -172,11 +217,47 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       return c.json({ error: "resume text exceeds size limit" }, 413);
     }
     const engine = c.get("engine");
-    const review = await engine.jobReview(resumeText, personaId);
+    const review = await engine.jobReview(resumeText, personaId, {
+      filename: readString(body.filename),
+      source: readString(body.source),
+    });
     if ("error" in review) {
       return c.json({ error: "Persona not found" }, 404);
     }
     return c.json(review);
+  });
+
+  app.get("/api/evals", async (c) => {
+    const kindParam = queryString(c.req.query("kind"));
+    if (kindParam !== undefined && !isEvalKind(kindParam)) {
+      return c.json({ error: "kind must be general_review, job_review, or persona_build" }, 400);
+    }
+    const providerParam = queryString(c.req.query("provider"));
+    if (providerParam !== undefined && providerParam !== "jev" && providerParam !== "mock") {
+      return c.json({ error: "provider must be jev or mock" }, 400);
+    }
+    const filter: EvalListFilter = {
+      kind: kindParam,
+      resumeId: queryString(c.req.query("resumeId")),
+      personaId: queryString(c.req.query("personaId")),
+      provider: providerParam,
+      promptHash: queryString(c.req.query("promptHash")),
+      minScore: queryNumber(c.req.query("minScore")),
+      maxScore: queryNumber(c.req.query("maxScore")),
+      limit: queryLimit(c.req.query("limit")),
+    };
+    const engine = c.get("engine");
+    const items = await engine.listEvals(filter);
+    return c.json({ items });
+  });
+
+  app.get("/api/evals/:id", async (c) => {
+    const engine = c.get("engine");
+    const run = await engine.getEval(c.req.param("id"));
+    if (!run) {
+      return c.json({ error: "Eval run not found" }, 404);
+    }
+    return c.json(run);
   });
 
   return app;
