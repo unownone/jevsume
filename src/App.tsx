@@ -169,7 +169,17 @@ export default function App() {
       </header>
 
       <section className="hero">
-        <h1>Review resume using Jev</h1>
+        <h1>
+          <img
+            className="hero-mark"
+            src="/jev-mark.svg"
+            width={40}
+            height={40}
+            alt=""
+            decoding="async"
+          />
+          <span>Review resume using Jev</span>
+        </h1>
         <p>
           Drop in a resume, choose who it’s for, and read it with Jev. Notes sit on the lines they
           belong to.

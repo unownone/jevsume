@@ -112,12 +112,28 @@ select {
 }
 
 .hero h1 {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   font-family: Syne, sans-serif;
   font-size: 2.75rem;
   line-height: 1.02;
   letter-spacing: -0.04em;
   margin: 0 0 12px;
+}
+
+.hero h1 span {
+  min-width: 0;
   max-width: 16ch;
+}
+
+.hero-mark {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 22%;
+  width: 40px;
+  height: 40px;
+  margin-top: 0.08em;
 }
 
 .hero p {
@@ -570,7 +586,16 @@ textarea {
     max-width: none;
   }
 
+  .hero h1 span {
+    max-width: none;
+  }
+
   .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .hero-mark {
     width: 32px;
     height: 32px;
   }
@@ -595,7 +620,8 @@ textarea {
     margin-bottom: 18px;
   }
 
-  .brand-mark {
+  .brand-mark,
+  .hero-mark {
     width: 28px;
     height: 28px;
   }
