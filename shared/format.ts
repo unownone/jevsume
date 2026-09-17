@@ -15,3 +15,29 @@ export function scoreTone(value: number): "low" | "mid" | "high" {
   }
   return "high";
 }
+
+export function formatReviewCost(usd: number): string {
+  if (!Number.isFinite(usd) || usd <= 0) {
+    return "$0";
+  }
+  if (usd >= 1) {
+    return `$${usd.toFixed(2)}`;
+  }
+  let digits = 3;
+  let value = usd.toFixed(digits);
+  while (Number(value) === 0 && digits < 8) {
+    digits += 1;
+    value = usd.toFixed(digits);
+  }
+  return `$${value.replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+
+export function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) {
+    return "0 ms";
+  }
+  if (ms < 1000) {
+    return `${Math.round(ms)} ms`;
+  }
+  return `${(ms / 1000).toFixed(1)} s`;
+}

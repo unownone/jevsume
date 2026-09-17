@@ -1,5 +1,5 @@
 import type { JobPersona } from "../../packages/jev/types.ts";
-import type { PersonaStore, ResumeStore, StoredResume } from "./types.ts";
+import type { PersonaStore, ResumeStore, StoredResume, VisitorStore } from "./types.ts";
 
 function personaKey(id: string): string {
   return `personas/${id}.json`;
@@ -49,5 +49,45 @@ export class R2ResumeStore implements ResumeStore {
       httpMetadata: { contentType: "application/json" },
     });
     return resume;
+  }
+}
+
+function visitorKey(id: string): string {
+  return `visitors/${id}`;
+}
+
+const VISITOR_COUNT_KEY = "meta/visitor-count.json";
+
+export class R2VisitorStore implements VisitorStore {
+  constructor(private readonly bucket: R2Bucket) {}
+
+  async record(visitorId: string): Promise<{ uniqueVisitors: number; created: boolean }> {
+    const existing = await this.bucket.head(visitorKey(visitorId));
+    if (existing) {
+      return { uniqueVisitors: await this.count(), created: false };
+    }
+    const current = await this.count();
+    await this.bucket.put(
+      visitorKey(visitorId),
+      JSON.stringify({ id: visitorId, at: new Date().toISOString() }),
+      { httpMetadata: { contentType: "application/json" } },
+    );
+    const next = current + 1;
+    await this.bucket.put(VISITOR_COUNT_KEY, JSON.stringify({ count: next }), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    return { uniqueVisitors: next, created: true };
+  }
+
+  async count(): Promise<number> {
+    const object = await this.bucket.get(VISITOR_COUNT_KEY);
+    if (object) {
+      const data = (await object.json()) as { count?: number };
+      if (typeof data.count === "number") {
+        return data.count;
+      }
+    }
+    const listed = await this.bucket.list({ prefix: "visitors/" });
+    return listed.objects.length;
   }
 }

@@ -168,7 +168,10 @@ export class MockJudgmentProvider implements JudgmentProvider {
     return {
       model: "mock-jev",
       answers,
-      usage: { input_tokens: 0, output_tokens: 0 },
+      usage: {
+        input_tokens: Math.max(1, Math.ceil(JSON.stringify(input).length / 4)),
+        output_tokens: 0,
+      },
     };
   }
 }

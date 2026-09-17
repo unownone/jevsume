@@ -1,3 +1,11 @@
+export type TextSpan = {
+  start: number;
+  end: number;
+  sectionId: string;
+  fragmentId: string;
+  line: number;
+};
+
 export type ReviewResponse = {
   mode: "general" | "job";
   jevScore: {
@@ -18,13 +26,18 @@ export type ReviewResponse = {
     kind: string;
     text: string;
     quality?: number;
-    fragments: { id: string; text: string; kind: string }[];
+    start: number;
+    end: number;
+    line: number;
+    fragments: { id: string; text: string; kind: string; start: number; end: number; line: number }[];
   }[];
   findings: {
     id: string;
     severity: "works" | "partial" | "missing" | "risk";
     title: string;
     detail: string;
+    span: TextSpan;
+    suggestedRewrite?: string;
   }[];
   requirements?: {
     id: string;
@@ -33,31 +46,27 @@ export type ReviewResponse = {
     noul: number;
     verdict: string;
   }[];
-  suggestions: { id: string; text: string }[];
-  provider: "jev" | "mock";
-  model?: string;
+  suggestions: { id: string; text: string; span?: TextSpan; findingId?: string }[];
+  resumeText: string;
+  persona: { id: string; title: string; isDefault: boolean };
+  telemetry: { serverMs: number; inputTokens: number; costUsd: number };
 };
 
-export type Persona = {
+export type JobPersonaItem = {
   id: string;
   title: string;
   tags: string[];
-  jobDescription: string;
-  requirements: {
-    id: string;
-    text: string;
-    category: string;
-    noul: number;
-  }[];
-  createdAt: string;
-};
-
-export type PersonaListItem = {
-  id: string;
-  title: string;
-  tags: string[];
+  isDefault: boolean;
+  summary: string;
+  explanation: string;
   requirementCount: number;
   createdAt: string;
+  jobDescription?: string;
+};
+
+export type JobPersonaCatalog = {
+  defaultId: string;
+  items: JobPersonaItem[];
 };
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -68,22 +77,21 @@ async function parseJson<T>(response: Response): Promise<T> {
   return body;
 }
 
-export async function fetchHealth(): Promise<{ ok: boolean; provider: string }> {
-  const response = await fetch("/api/health");
+export async function listJobPersonas(): Promise<JobPersonaCatalog> {
+  const response = await fetch("/api/job-personas");
   return parseJson(response);
 }
 
-export async function listPersonas(): Promise<PersonaListItem[]> {
-  const response = await fetch("/api/personas");
-  const body = await parseJson<{ items: PersonaListItem[] }>(response);
-  return body.items;
+export async function getJobPersona(id: string): Promise<JobPersonaItem> {
+  const response = await fetch(`/api/job-personas/${encodeURIComponent(id)}`);
+  return parseJson(response);
 }
 
 export async function createPersona(input: {
   title: string;
   tags: string[];
   jobDescription: string;
-}): Promise<Persona> {
+}): Promise<{ id: string; title: string }> {
   const response = await fetch("/api/personas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -100,23 +108,25 @@ export async function storeResume(text: string, source: string): Promise<void> {
   });
 }
 
-export async function generalReview(resumeText: string): Promise<ReviewResponse> {
+export async function runReview(
+  resumeText: string,
+  personaId: string,
+): Promise<ReviewResponse> {
   const response = await fetch("/api/reviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resumeText }),
+    body: JSON.stringify({ resumeText, personaId }),
   });
   return parseJson(response);
 }
 
-export async function jobReview(
-  resumeText: string,
-  personaId: string,
-): Promise<ReviewResponse> {
-  const response = await fetch("/api/reviews/job", {
+export async function recordVisitor(
+  visitorId: string,
+): Promise<{ uniqueVisitors: number; visitorId: string }> {
+  const response = await fetch("/api/visitors", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resumeText, personaId }),
+    body: JSON.stringify({ visitorId }),
   });
   return parseJson(response);
 }

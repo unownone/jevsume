@@ -3,23 +3,31 @@ import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { TypeSafeHttpError } from "../packages/jev/http.ts";
+import { DEFAULT_PERSONA_ID } from "../packages/jev/index.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
-import { MemoryPersonaStore, MemoryResumeStore } from "./storage/memory.ts";
-import { R2PersonaStore, R2ResumeStore } from "./storage/r2.ts";
-import type { PersonaStore, ResumeStore } from "./storage/types.ts";
+import { MemoryPersonaStore, MemoryResumeStore, MemoryVisitorStore } from "./storage/memory.ts";
+import { R2PersonaStore, R2ResumeStore, R2VisitorStore } from "./storage/r2.ts";
+import type { PersonaStore, ResumeStore, VisitorStore } from "./storage/types.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
   Variables: {
     engine: ReviewEngine;
+    visitors: VisitorStore;
   };
 };
 
 export type CreateAppOptions = {
   engine?: ReviewEngine;
+  visitors?: VisitorStore;
 };
 
-const enginesByEnv = new WeakMap<object, ReviewEngine>();
+type EnvRuntime = {
+  engine: ReviewEngine;
+  visitors: VisitorStore;
+};
+
+const runtimeByEnv = new WeakMap<object, EnvRuntime>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -44,35 +52,54 @@ function workerFetch(): typeof fetch {
   return globalThis.fetch.bind(globalThis);
 }
 
+function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) {
+    return undefined;
+  }
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) {
+      return rest.join("=");
+    }
+  }
+  return undefined;
+}
+
+function isVisitorId(value: string): boolean {
+  return /^[A-Za-z0-9._-]{8,128}$/.test(value);
+}
+
 export function createStores(env: CloudflareBindings): {
   personas: PersonaStore;
   resumes: ResumeStore;
+  visitors: VisitorStore;
 } {
   if (env.PERSONAS) {
     return {
       personas: new R2PersonaStore(env.PERSONAS),
       resumes: new R2ResumeStore(env.PERSONAS),
+      visitors: new R2VisitorStore(env.PERSONAS),
     };
   }
   return {
     personas: new MemoryPersonaStore(),
     resumes: new MemoryResumeStore(),
+    visitors: new MemoryVisitorStore(),
   };
 }
 
-function engineForEnv(env: CloudflareBindings): ReviewEngine {
-  const cached = enginesByEnv.get(env);
+function runtimeForEnv(env: CloudflareBindings): EnvRuntime {
+  const cached = runtimeByEnv.get(env);
   if (cached) {
     return cached;
   }
   const stores = createStores(env);
-  const engine = new ReviewEngine(
-    createProvider(env, workerFetch()),
-    stores.personas,
-    stores.resumes,
-  );
-  enginesByEnv.set(env, engine);
-  return engine;
+  const runtime: EnvRuntime = {
+    engine: new ReviewEngine(createProvider(env, workerFetch()), stores.personas, stores.resumes),
+    visitors: stores.visitors,
+  };
+  runtimeByEnv.set(env, runtime);
+  return runtime;
 }
 
 async function jsonObject(c: Context<AppEnv>): Promise<Record<string, unknown>> {
@@ -100,9 +127,22 @@ function assertResumeSize(text: string, label: string): void {
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("/api/*", cors());
+  let memoryVisitors: MemoryVisitorStore | undefined;
 
   app.use("/api/*", async (c, next) => {
-    c.set("engine", options.engine ?? engineForEnv(c.env));
+    if (options.engine) {
+      c.set("engine", options.engine);
+      if (options.visitors) {
+        c.set("visitors", options.visitors);
+      } else {
+        memoryVisitors ??= new MemoryVisitorStore();
+        c.set("visitors", memoryVisitors);
+      }
+    } else {
+      const runtime = runtimeForEnv(c.env);
+      c.set("engine", runtime.engine);
+      c.set("visitors", options.visitors ?? runtime.visitors);
+    }
     await next();
   });
 
@@ -124,6 +164,36 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       provider: engine.providerId(),
       time: new Date().toISOString(),
     });
+  });
+
+  app.get("/api/visitors", async (c) => {
+    return c.json({ uniqueVisitors: await c.get("visitors").count() });
+  });
+
+  app.post("/api/visitors", async (c) => {
+    const body: unknown = await c.req.json().catch(() => null);
+    const fromBody = isRecord(body) ? readString(body.visitorId)?.trim() : undefined;
+    const fromCookie = readCookie(c.req.header("Cookie"), "jevsume_vid");
+    const visitorId =
+      (fromBody && isVisitorId(fromBody) ? fromBody : undefined) ??
+      (fromCookie && isVisitorId(fromCookie) ? fromCookie : undefined) ??
+      crypto.randomUUID();
+    const recorded = await c.get("visitors").record(visitorId);
+    c.header("Set-Cookie", `jevsume_vid=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax`);
+    return c.json({ uniqueVisitors: recorded.uniqueVisitors, visitorId });
+  });
+
+  app.get("/api/job-personas", async (c) => {
+    const items = await c.get("engine").listJobPersonas();
+    return c.json({ defaultId: DEFAULT_PERSONA_ID, items });
+  });
+
+  app.get("/api/job-personas/:id", async (c) => {
+    const persona = await c.get("engine").getJobPersona(c.req.param("id"));
+    if (!persona) {
+      throw new HTTPException(404, { message: "Persona not found" });
+    }
+    return c.json(persona);
   });
 
   app.post("/api/personas", async (c) => {
@@ -176,7 +246,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
-    const review = await c.get("engine").generalReview(resumeText);
+    const personaId = readString(body.personaId)?.trim();
+    const review = await c.get("engine").review(resumeText, personaId);
+    if ("error" in review) {
+      throw new HTTPException(404, { message: "Persona not found" });
+    }
     return c.json(review);
   });
 

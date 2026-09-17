@@ -87,6 +87,9 @@ export type ResumeFragment = {
   id: string;
   text: string;
   kind: "heading" | "bullet" | "paragraph";
+  start: number;
+  end: number;
+  line: number;
 };
 
 export type ResumeSection = {
@@ -96,6 +99,9 @@ export type ResumeSection = {
   text: string;
   fragments: ResumeFragment[];
   quality?: number;
+  start: number;
+  end: number;
+  line: number;
 };
 
 export type GroupedResume = {
@@ -139,16 +145,28 @@ export type DimensionScore = {
   confidence?: number;
 };
 
+export type TextSpan = {
+  start: number;
+  end: number;
+  sectionId: string;
+  fragmentId: string;
+  line: number;
+};
+
 export type ReviewFinding = {
   id: string;
   severity: FindingSeverity;
   title: string;
   detail: string;
+  span: TextSpan;
+  suggestedRewrite?: string;
 };
 
 export type ReviewSuggestion = {
   id: string;
   text: string;
+  span?: TextSpan;
+  findingId?: string;
 };
 
 export type RequirementReview = {
@@ -157,6 +175,18 @@ export type RequirementReview = {
   category: string;
   noul: number;
   verdict: RequirementVerdict;
+};
+
+export type ReviewPersona = {
+  id: string;
+  title: string;
+  isDefault: boolean;
+};
+
+export type ReviewTelemetry = {
+  serverMs: number;
+  inputTokens: number;
+  costUsd: number;
 };
 
 export type ReviewResponse = {
@@ -169,6 +199,9 @@ export type ReviewResponse = {
   suggestions: ReviewSuggestion[];
   provider: ProviderId;
   model?: string;
+  resumeText: string;
+  persona: ReviewPersona;
+  telemetry: ReviewTelemetry;
 };
 
 export function assertNever(_value: never, message: string): never {

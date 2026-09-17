@@ -1,3 +1,11 @@
+import {
+  fallbackSpan,
+  passageForSpan,
+  sectionBodySpan,
+  spanForDimension,
+  spanMatchingText,
+} from "./anchors.ts";
+import { DEFAULT_PERSONA } from "./default-persona.ts";
 import { PERSONA_NOUL_KEEP_THRESHOLD } from "./questions.ts";
 import { GENERAL_WEIGHTS, JOB_SCORE_WEIGHTS, toJevScore } from "./score.ts";
 import type {
@@ -15,9 +23,11 @@ import type {
   ReviewFinding,
   ReviewResponse,
   ReviewSuggestion,
+  ReviewTelemetry,
   ScoreAnswer,
   SectionKind,
   SystemOneResult,
+  TextSpan,
 } from "./types.ts";
 import { assertNever } from "./types.ts";
 
@@ -61,7 +71,7 @@ const DIMENSION_LABELS: Record<string, string> = {
   conciseness: "Conciseness",
   structure: "Structure",
   metrics: "Metrics",
-  ats_parse: "ATS parse",
+  ats_parse: "Plain text",
   fit_overall: "Role fit",
   keyword_alignment: "Keyword alignment",
   evidence_strength: "Evidence",
@@ -88,8 +98,19 @@ function dimensionList(
   });
 }
 
-function suggestion(id: string, text: string): ReviewSuggestion {
-  return { id, text };
+const EMPTY_TELEMETRY: ReviewTelemetry = {
+  serverMs: 0,
+  inputTokens: 0,
+  costUsd: 0,
+};
+
+function suggestion(
+  id: string,
+  text: string,
+  span?: TextSpan,
+  findingId?: string,
+): ReviewSuggestion {
+  return { id, text, ...(span ? { span } : {}), ...(findingId ? { findingId } : {}) };
 }
 
 function finding(
@@ -97,11 +118,40 @@ function finding(
   severity: FindingSeverity,
   title: string,
   detail: string,
+  span: TextSpan,
+  suggestedRewrite?: string,
 ): ReviewFinding {
-  return { id, severity, title, detail };
+  return { id, severity, title, detail, span, ...(suggestedRewrite ? { suggestedRewrite } : {}) };
 }
 
-function generalSuggestions(answers: Record<string, Answer>): ReviewSuggestion[] {
+function rewriteFor(kind: string, passage: string): string {
+  const line = passage.replace(/\s+/g, " ").trim();
+  const clipped = line.length > 140 ? `${line.slice(0, 137)}…` : line;
+  const stem = clipped || "this line";
+  switch (kind) {
+    case "metrics":
+      return `Try: ${stem} — name the outcome in numbers (%, $, time, or scale).`;
+    case "wording":
+      return `Try: lead with what you owned, not “responsible for.” ${stem}`;
+    case "conciseness":
+      return `Try: keep one outcome on this line. ${stem}`;
+    case "structure":
+      return "Try: put this heading on its own line: Experience, Education, or Skills.";
+    case "ats_parse":
+      return "Try: keep this as a single column of plain text, no tables or images.";
+    case "summary":
+      return "Try: a two-line profile that names the role you want and two proof points.";
+    case "skills":
+      return "Try: a Skills line of tools and languages a recruiter can copy.";
+    default:
+      return `Try tightening this line: ${stem}`;
+  }
+}
+
+function generalSuggestions(
+  answers: Record<string, Answer>,
+  sections: ResumeSection[],
+): ReviewSuggestion[] {
   const out: ReviewSuggestion[] = [];
   const metrics = asScore(answers.metrics);
   const wording = asScore(answers.wording);
@@ -113,63 +163,80 @@ function generalSuggestions(answers: Record<string, Answer>): ReviewSuggestion[]
   const weakest = asChoice(answers.weakest_dimension);
 
   if (metrics && metrics.score < 2) {
+    const span = spanForDimension("metrics", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "metrics",
-        "Add quantified outcomes (%, $, time saved, team size, scale) to bullets.",
+        "Add quantified outcomes (%, $, time saved, team size, scale) to this bullet.",
+        span,
+        "weakest",
       ),
     );
   }
   if (wording && wording.score < 2) {
+    const span = spanForDimension("wording", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "wording",
         "Replace generic verbs (responsible for, helped) with specific ownership language.",
+        span,
       ),
     );
   }
   if (conciseness && conciseness.score < 2) {
+    const span = spanForDimension("conciseness", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "conciseness",
-        "Cut filler and keep one outcome per bullet so ATS and humans can scan.",
+        "Cut filler and keep one outcome per bullet so a reader can scan.",
+        span,
       ),
     );
   }
   if (structure && structure.score < 2) {
+    const span = spanForDimension("structure", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "structure",
-        "Use canonical headings (Experience, Education, Skills) on their own lines.",
+        "Use familiar headings (Experience, Education, Skills) on their own lines.",
+        span,
       ),
     );
   }
   if (ats && ats.score < 2) {
+    const span = spanForDimension("ats_parse", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "ats_parse",
-        "Avoid multi-column layouts, text in images, and tables; keep a linear text layer.",
+        "Keep a linear text layer — avoid columns, text in images, and tables.",
+        span,
       ),
     );
   }
   if (hasSummary && hasSummary.noul < 0.4) {
+    const span = spanForDimension("wording", sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "summary",
         "Add a short profile that names the role you want and 2–3 proof points.",
+        span,
       ),
     );
   }
   if (hasSkills && hasSkills.noul < 0.4) {
+    const span = spanForDimension("skills", sections) ?? fallbackSpan(sections);
     out.push(
-      suggestion("skills", "Add a Skills line of parser-friendly tokens (tools, languages)."),
+      suggestion("skills", "Add a Skills line of tools and languages a reader can copy.", span),
     );
   }
   if (weakest && weakest.choice !== "none") {
+    const span = spanForDimension(weakest.choice, sections) ?? fallbackSpan(sections);
     out.push(
       suggestion(
         "weakest",
-        `Biggest ATS risk flagged: ${weakest.choice}. Raise that dimension before applying.`,
+        `The thinnest part of this resume is ${weakest.choice}. Raise that before you send it.`,
+        span,
+        "weakest",
       ),
     );
   }
@@ -242,6 +309,8 @@ export function transformGeneralReview(input: {
   result: SystemOneResult;
   sections: ResumeSection[];
   provider: ProviderId;
+  resumeText?: string;
+  telemetry?: ReviewTelemetry;
 }): ReviewResponse {
   const { answers, model } = input.result;
   const scores = pickScores(answers, Object.keys(GENERAL_WEIGHTS));
@@ -251,30 +320,37 @@ export function transformGeneralReview(input: {
 
   const hasExperience = asNoul(answers.has_experience);
   if (hasExperience && hasExperience.noul < 0.4) {
+    const span = spanForDimension("structure", sections) ?? fallbackSpan(sections);
     findings.push(
       finding(
         "no-experience",
         "risk",
         "Experience hard to parse",
         "Jev is not confident this resume contains recognizable work history.",
+        span,
+        rewriteFor("structure", passageForSpan(sections, span)),
       ),
     );
   }
 
   const weakest = asChoice(answers.weakest_dimension);
   if (weakest && weakest.choice !== "none") {
+    const span = spanForDimension(weakest.choice, sections) ?? fallbackSpan(sections);
     findings.push(
       finding(
         "weakest",
         "risk",
-        `Weakest dimension: ${weakest.choice}`,
-        `Confidence ${weakest.confidence.toFixed(2)}.`,
+        `Needs work: ${weakest.choice}`,
+        `This is the thinnest part of the resume (confidence ${weakest.confidence.toFixed(2)}).`,
+        span,
+        rewriteFor(weakest.choice, passageForSpan(sections, span)),
       ),
     );
   }
 
   for (const section of sections) {
     const quality = asScore(answers[`sec_${section.id}_quality`]);
+    const span = sectionBodySpan(section) ?? fallbackSpan(sections);
     if (quality && quality.score >= 3) {
       findings.push(
         finding(
@@ -282,6 +358,7 @@ export function transformGeneralReview(input: {
           "works",
           `${section.heading} reads well`,
           `Section quality ${quality.score.toFixed(1)} / 4.`,
+          span,
         ),
       );
     } else if (quality && quality.score < 2) {
@@ -291,9 +368,24 @@ export function transformGeneralReview(input: {
           "partial",
           `${section.heading} needs work`,
           `Section quality ${quality.score.toFixed(1)} / 4.`,
+          span,
+          rewriteFor(section.kind === "skills" ? "skills" : "wording", passageForSpan(sections, span)),
         ),
       );
     }
+  }
+
+  if (findings.length === 0) {
+    const span = fallbackSpan(sections);
+    findings.push(
+      finding(
+        "read-through",
+        "works",
+        "This resume holds together",
+        "No hard gaps jumped out. Skim the marked lines anyway — small wording wins still count.",
+        span,
+      ),
+    );
   }
 
   return {
@@ -302,9 +394,16 @@ export function transformGeneralReview(input: {
     dimensions: dimensionList(answers, Object.keys(GENERAL_WEIGHTS)),
     sections,
     findings,
-    suggestions: generalSuggestions(answers),
+    suggestions: generalSuggestions(answers, sections),
     provider: input.provider,
     model,
+    resumeText: input.resumeText ?? sections.map((section) => section.text).join("\n"),
+    persona: {
+      id: DEFAULT_PERSONA.id,
+      title: DEFAULT_PERSONA.title,
+      isDefault: true,
+    },
+    telemetry: input.telemetry ?? EMPTY_TELEMETRY,
   };
 }
 
@@ -313,9 +412,12 @@ export function transformJobReview(input: {
   persona: JobPersona;
   sections: ResumeSection[];
   provider: ProviderId;
+  resumeText?: string;
+  telemetry?: ReviewTelemetry;
 }): ReviewResponse {
   const { answers, model } = input.result;
   const scores = pickScores(answers, Object.keys(JOB_SCORE_WEIGHTS));
+  const sections = annotateSections(input.sections, answers);
 
   const requirements: RequirementReview[] = input.persona.requirements.map((req) => {
     const noul = asNoul(answers[`req_${req.id}_covered`])?.noul ?? 0;
@@ -331,10 +433,11 @@ export function transformJobReview(input: {
     };
   });
 
-  const coveragePool = requirements.filter((req) =>
-    req.category === "must_have" ||
-    req.category === "nice_to_have" ||
-    req.category === "responsibility",
+  const coveragePool = requirements.filter(
+    (req) =>
+      req.category === "must_have" ||
+      req.category === "nice_to_have" ||
+      req.category === "responsibility",
   );
   const coverage01 =
     coveragePool.length === 0
@@ -343,31 +446,49 @@ export function transformJobReview(input: {
 
   const jevScore = toJevScore(JOB_SCORE_WEIGHTS, scores, coverage01, 0.25);
   const findings: ReviewFinding[] = [];
-  const suggestions: ReviewSuggestion[] = [...generalSuggestions(answers)];
+  const suggestions: ReviewSuggestion[] = [...generalSuggestions(answers, sections)];
 
   for (const req of requirements) {
+    const span = spanMatchingText(sections, req.text) ?? fallbackSpan(sections);
+    const passage = passageForSpan(sections, span);
     switch (req.verdict) {
       case "works":
-        findings.push(finding(`req-${req.id}`, "works", "Works for this job", req.text));
+        findings.push(finding(`req-${req.id}`, "works", "Works for this job", req.text, span));
         break;
       case "partial":
-        findings.push(finding(`req-${req.id}`, "partial", "Partial match", req.text));
+        findings.push(finding(`req-${req.id}`, "partial", "Partial match", req.text, span, `Make this requirement explicit near: ${passage}`));
         suggestions.push(
-          suggestion(`req-${req.id}`, `Make this requirement explicit: ${req.text}`),
+          suggestion(`req-${req.id}`, `Make this requirement explicit: ${req.text}`, span, `req-${req.id}`),
         );
         break;
       case "missing":
-        findings.push(finding(`req-${req.id}`, "missing", "Missing for this job", req.text));
+        findings.push(
+          finding(
+            `req-${req.id}`,
+            "missing",
+            "Missing for this job",
+            req.text,
+            span,
+            `Add a line that shows: ${req.text}`,
+          ),
+        );
         suggestions.push(
-          suggestion(`req-${req.id}`, `Add evidence for: ${req.text}`),
+          suggestion(`req-${req.id}`, `Add evidence for: ${req.text}`, span, `req-${req.id}`),
         );
         break;
       case "contradicts":
         findings.push(
-          finding(`req-${req.id}`, "risk", "Conflicts with the job", req.text),
+          finding(
+            `req-${req.id}`,
+            "risk",
+            "Conflicts with the job",
+            req.text,
+            span,
+            `Reconcile this line with: ${req.text}`,
+          ),
         );
         suggestions.push(
-          suggestion(`req-${req.id}`, `Resolve the conflict with: ${req.text}`),
+          suggestion(`req-${req.id}`, `Resolve the conflict with: ${req.text}`, span, `req-${req.id}`),
         );
         break;
       default: {
@@ -386,12 +507,19 @@ export function transformJobReview(input: {
       "evidence_strength",
       ...Object.keys(GENERAL_WEIGHTS).filter((key) => key !== "ats_parse"),
     ]),
-    sections: input.sections,
+    sections,
     findings,
     requirements,
     suggestions,
     provider: input.provider,
     model,
+    resumeText: input.resumeText ?? sections.map((section) => section.text).join("\n"),
+    persona: {
+      id: input.persona.id,
+      title: input.persona.title,
+      isDefault: false,
+    },
+    telemetry: input.telemetry ?? EMPTY_TELEMETRY,
   };
 }
 
