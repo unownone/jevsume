@@ -1,10 +1,13 @@
 # Cloudflare Workers Builds uses pnpm 10.11.1, which requires `packages`.
+# This is a single-package app (`packages/jev` is source, not a workspace pkg).
 # onlyBuiltDependencies = pnpm 10; allowBuilds = pnpm 11.
 packages:
-  - .
+  - "."
+
 onlyBuiltDependencies:
   - esbuild
   - workerd
+
 allowBuilds:
   esbuild: true
   workerd: true
