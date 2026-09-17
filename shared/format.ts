@@ -36,6 +36,9 @@ export function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) {
     return "0 ms";
   }
+  if (ms < 1) {
+    return "<1 ms";
+  }
   if (ms < 1000) {
     return `${Math.round(ms)} ms`;
   }

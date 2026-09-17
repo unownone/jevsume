@@ -149,6 +149,14 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
+          <img
+            className="brand-mark"
+            src="/jev-mark.svg"
+            width={36}
+            height={36}
+            alt=""
+            decoding="async"
+          />
           jev<span>sume</span>
         </div>
         {visitors !== null ? (
@@ -255,7 +263,7 @@ export default function App() {
                     <div className="track">
                       <div
                         className="fill"
-                        style={{ width: `${(dimension.score / dimension.max) * 100}%` }}
+                        style={{ transform: `scaleX(${dimension.score / dimension.max})` }}
                       />
                     </div>
                   </div>

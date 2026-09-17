@@ -316,6 +316,7 @@ export function transformGeneralReview(input: {
   const scores = pickScores(answers, Object.keys(GENERAL_WEIGHTS));
   const jevScore = toJevScore(GENERAL_WEIGHTS, scores, null, 0);
   const sections = annotateSections(input.sections, answers);
+  const dimensions = dimensionList(answers, Object.keys(GENERAL_WEIGHTS));
   const findings: ReviewFinding[] = [];
 
   const hasExperience = asNoul(answers.has_experience);
@@ -375,6 +376,23 @@ export function transformGeneralReview(input: {
     }
   }
 
+  for (const dimension of dimensions) {
+    if (dimension.score >= 3) {
+      continue;
+    }
+    const span = spanForDimension(dimension.id, sections) ?? fallbackSpan(sections);
+    findings.push(
+      finding(
+        `dim-${dimension.id}`,
+        dimension.score < 2 ? "partial" : "partial",
+        `${dimension.label} could be tighter`,
+        `${dimension.label} scored ${dimension.score.toFixed(1)} / 4 on this passage.`,
+        span,
+        rewriteFor(dimension.id, passageForSpan(sections, span)),
+      ),
+    );
+  }
+
   if (findings.length === 0) {
     const span = fallbackSpan(sections);
     findings.push(
@@ -391,7 +409,7 @@ export function transformGeneralReview(input: {
   return {
     mode: "general",
     jevScore,
-    dimensions: dimensionList(answers, Object.keys(GENERAL_WEIGHTS)),
+    dimensions,
     sections,
     findings,
     suggestions: generalSuggestions(answers, sections),

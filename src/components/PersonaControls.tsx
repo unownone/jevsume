@@ -137,7 +137,7 @@ export function PersonaControls({
             </>
           ) : null}
           <form method="dialog">
-            <button className="primary" type="submit">
+            <button className="ghost" type="submit">
               Close
             </button>
           </form>

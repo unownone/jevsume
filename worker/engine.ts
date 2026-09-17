@@ -180,9 +180,9 @@ export class ReviewEngine {
   }
 
   private async evaluate(input: SystemOneRequest): Promise<{ result: SystemOneResult; serverMs: number }> {
-    const started = Date.now();
+    const started = performance.now();
     const result = await this.provider.evaluate(input);
-    return { result, serverMs: Date.now() - started };
+    return { result, serverMs: Math.max(0, Math.round(performance.now() - started)) };
   }
 
   async generalReview(resumeText: string): Promise<ReviewResponse> {

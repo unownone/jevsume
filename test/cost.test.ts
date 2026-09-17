@@ -21,5 +21,6 @@ describe("quiet telemetry copy", () => {
   it("formats durations in milliseconds or seconds", () => {
     expect(formatDurationMs(48)).toBe("48 ms");
     expect(formatDurationMs(1500)).toBe("1.5 s");
+    expect(formatDurationMs(0)).toBe("<1 ms");
   });
 });
