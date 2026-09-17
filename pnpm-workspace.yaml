@@ -1,6 +1,10 @@
+packages:
+  - "."
+
 allowBuilds:
-  esbuild: false
-  workerd: false
+  esbuild: true
+  workerd: true
+
 minimumReleaseAgeExclude:
   - '@cloudflare/vite-plugin@1.55.0'
   - '@cloudflare/workerd-darwin-64@1.20260917.1'
