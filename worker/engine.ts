@@ -137,7 +137,7 @@ export class ReviewEngine {
   }
 }
 
-export function createProvider(env: EngineBindings): JudgmentProvider {
+export function createProvider(env: EngineBindings, fetchImpl?: typeof fetch): JudgmentProvider {
   const apiKey = env.TYPESAFE_API_KEY?.trim();
   if (!apiKey) {
     return new MockJudgmentProvider();
@@ -146,5 +146,6 @@ export function createProvider(env: EngineBindings): JudgmentProvider {
     apiKey,
     baseURL: env.TYPESAFE_BASE_URL,
     model: env.TYPESAFE_MODEL,
+    fetch: fetchImpl,
   });
 }

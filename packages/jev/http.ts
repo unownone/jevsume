@@ -33,7 +33,7 @@ export class TypeSafeHttpProvider implements JudgmentProvider {
     this.apiKey = config.apiKey;
     this.baseURL = (config.baseURL ?? "https://api.typesafe.ai").replace(/\/$/, "");
     this.model = config.model ?? "jev-latest";
-    this.fetchImpl = config.fetch ?? fetch;
+    this.fetchImpl = wrapFetch(config.fetch);
   }
 
   async evaluate(input: SystemOneRequest): Promise<SystemOneResult> {
@@ -66,4 +66,17 @@ export class TypeSafeHttpProvider implements JudgmentProvider {
 async function readErrorBody(response: Response): Promise<string> {
   const text = await response.text();
   return text.slice(0, 500);
+}
+
+/**
+ * workerd host `fetch` throws Illegal invocation if it is stored and called
+ * later as a free function. Always invoke it with the Worker global as `this`.
+ */
+function wrapFetch(custom?: typeof fetch): typeof fetch {
+  if (custom) {
+    return custom;
+  }
+  const impl = globalThis.fetch.bind(globalThis);
+  return ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
+    impl(input, init)) as typeof fetch;
 }
