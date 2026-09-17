@@ -7,6 +7,7 @@ import { DEFAULT_PERSONA_ID } from "../packages/jev/index.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
 import { createD1Stores } from "./storage/d1.ts";
 import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
+import { ensureD1Schema } from "./storage/schema.ts";
 import type { EvalListFilter, ReviewStores, VisitorStore } from "./storage/types.ts";
 import { isEvalKind } from "./storage/types.ts";
 
@@ -28,7 +29,7 @@ type EnvRuntime = {
   visitors: VisitorStore;
 };
 
-const runtimeByEnv = new WeakMap<object, EnvRuntime>();
+const runtimeByEnv = new WeakMap<object, Promise<EnvRuntime>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -97,18 +98,28 @@ export function createStores(env: CloudflareBindings): ReviewStores {
   return createMemoryStores();
 }
 
-function runtimeForEnv(env: CloudflareBindings): EnvRuntime {
+function runtimeForEnv(env: CloudflareBindings): Promise<EnvRuntime> {
   const cached = runtimeByEnv.get(env);
   if (cached) {
     return cached;
   }
-  const stores = createStores(env);
-  const runtime: EnvRuntime = {
-    engine: new ReviewEngine(createProvider(env), stores),
-    visitors: stores.visitors,
-  };
-  runtimeByEnv.set(env, runtime);
-  return runtime;
+  const pending = (async () => {
+    try {
+      if (env.DB) {
+        await ensureD1Schema(env.DB);
+      }
+      const stores = createStores(env);
+      return {
+        engine: new ReviewEngine(createProvider(env), stores),
+        visitors: stores.visitors,
+      };
+    } catch (error) {
+      runtimeByEnv.delete(env);
+      throw error;
+    }
+  })();
+  runtimeByEnv.set(env, pending);
+  return pending;
 }
 
 async function jsonObject(c: Context<AppEnv>): Promise<Record<string, unknown>> {
@@ -148,7 +159,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
         c.set("visitors", memoryVisitors);
       }
     } else {
-      const runtime = runtimeForEnv(c.env);
+      const runtime = await runtimeForEnv(c.env);
       c.set("engine", runtime.engine);
       c.set("visitors", options.visitors ?? runtime.visitors);
     }

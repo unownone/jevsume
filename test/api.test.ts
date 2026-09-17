@@ -7,6 +7,8 @@ import {
 import { createApp } from "../worker/app.ts";
 import { ReviewEngine } from "../worker/engine.ts";
 import { createMemoryStores } from "../worker/storage/memory.ts";
+import { D1_SCHEMA_STATEMENTS, ensureD1Schema } from "../worker/storage/schema.ts";
+import { createSqliteD1, emptyD1Env } from "./sqlite-d1.ts";
 
 function testApp() {
   const stores = createMemoryStores();
@@ -363,6 +365,70 @@ describe("Hono API", () => {
     expect(await res.json()).toEqual({
       error: "TypeSafe SystemOne failed (422): bad questions",
     });
+  });
+
+  it("bootstraps an unmigrated D1 so first-run job personas and visitors work", async () => {
+    const app = createApp();
+    const env = emptyD1Env(createSqliteD1());
+
+    const listed = await app.request("/api/job-personas", {}, env);
+    expect(listed.status).toBe(200);
+    const catalog = (await listed.json()) as {
+      defaultId: string;
+      items: { id: string; isDefault: boolean }[];
+    };
+    expect(catalog.defaultId).toBe("default");
+    expect(catalog.items.some((item) => item.isDefault && item.id === "default")).toBe(true);
+
+    const recorded = await app.request(
+      "/api/visitors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "first-run-visitor" }),
+      },
+      env,
+    );
+    expect(recorded.status).toBe(200);
+    const body = (await recorded.json()) as { uniqueVisitors: number; visitorId: string };
+    expect(body.visitorId).toBe("first-run-visitor");
+    expect(body.uniqueVisitors).toBe(1);
+
+    const review = await app.request(
+      "/api/reviews",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeText: SAMPLE_RESUME, personaId: "default" }),
+      },
+      env,
+    );
+    expect(review.status).toBe(200);
+    const reviewed = (await review.json()) as { mode: string; findings: unknown[] };
+    expect(reviewed.mode).toBe("general");
+    expect(reviewed.findings.length).toBeGreaterThan(0);
+  });
+
+  it("applies D1 schema as separate prepare/run statements, not exec", async () => {
+    const statements: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        statements.push(sql);
+        return {
+          async run() {
+            return { success: true as const, results: [], meta: { changes: 0 } };
+          },
+        };
+      },
+      async exec() {
+        throw new Error("D1.exec splits multi-line CREATE TABLE and must not be used");
+      },
+    } as unknown as D1Database;
+
+    await ensureD1Schema(db);
+    expect(statements).toEqual([...D1_SCHEMA_STATEMENTS]);
+    await ensureD1Schema(db);
+    expect(statements).toHaveLength(D1_SCHEMA_STATEMENTS.length);
   });
 
   it("returns JSON when the judgment provider throws instead of Hono plaintext 500", async () => {

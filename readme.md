@@ -28,7 +28,7 @@ cp .dev.vars.example .dev.vars
 pnpm dev
 ```
 
-Open the Vite URL (usually `http://localhost:5173`). Without `TYPESAFE_API_KEY`, the Worker uses a **deterministic mock** so the app still runs.
+Open the Vite URL (usually `http://localhost:5173`). Without `TYPESAFE_API_KEY`, the Worker uses a **deterministic mock** so the app still runs. `pnpm dev` applies local D1 migrations first. If D1 is bound but empty (first run or a preview that has not been migrated), the Worker also creates the schema on the first `/api/*` request.
 
 ```bash
 pnpm test
