@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MockJudgmentProvider } from "../packages/jev/index.ts";
+import { MockJudgmentProvider, TypeSafeHttpError } from "../packages/jev/index.ts";
 import { createApp } from "../worker/app.ts";
 import { ReviewEngine } from "../worker/engine.ts";
 import { MemoryPersonaStore, MemoryResumeStore } from "../worker/storage/memory.ts";
@@ -118,5 +118,53 @@ describe("Hono API", () => {
     };
     expect(body.mode).toBe("general");
     expect(body.dimensions.some((item) => item.id === "wording")).toBe(true);
+  });
+
+  it("returns JSON 502 when TypeSafe HTTP fails", async () => {
+    const engine = new ReviewEngine(
+      {
+        id: "jev",
+        evaluate: async () => {
+          throw new TypeSafeHttpError(422, "TypeSafe SystemOne failed (422): bad questions");
+        },
+      },
+      new MemoryPersonaStore(),
+      new MemoryResumeStore(),
+    );
+    const app = createApp({ engine });
+    const res = await app.request("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeText: SAMPLE_RESUME }),
+    });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: "TypeSafe SystemOne failed (422): bad questions",
+    });
+  });
+
+  it("returns JSON when the judgment provider throws instead of Hono plaintext 500", async () => {
+    const engine = new ReviewEngine(
+      {
+        id: "jev",
+        evaluate: async () => {
+          throw new TypeError(
+            "Illegal invocation: function called with incorrect this reference",
+          );
+        },
+      },
+      new MemoryPersonaStore(),
+      new MemoryResumeStore(),
+    );
+    const app = createApp({ engine });
+    const res = await app.request("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeText: SAMPLE_RESUME }),
+    });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type") ?? "").toMatch(/json/i);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBeTruthy();
   });
 });

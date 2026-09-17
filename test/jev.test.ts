@@ -5,7 +5,7 @@ import {
   buildPersonaQuestions,
 } from "../packages/jev/questions.ts";
 import { GENERAL_WEIGHTS, toJevScore } from "../packages/jev/score.ts";
-import { TypeSafeHttpProvider } from "../packages/jev/http.ts";
+import { TypeSafeHttpError, TypeSafeHttpProvider } from "../packages/jev/http.ts";
 import { MockJudgmentProvider } from "../packages/jev/mock.ts";
 import {
   requirementsFromPersonaAnswers,
@@ -286,4 +286,72 @@ describe("TypeSafeHttpProvider", () => {
     const result = await provider.evaluate({ state: { ok: true }, questions: {} });
     expect(result.model).toBe("jev-latest");
   });
+
+  it("does not invoke host fetch with the provider as this", async () => {
+    const restore = installWorkerdStyleFetch();
+    try {
+      const provider = new TypeSafeHttpProvider({
+        apiKey: "test-key",
+        fetch: globalThis.fetch,
+      });
+      const result = await provider.evaluate({ state: { ok: true }, questions: {} });
+      expect(result.model).toBe("jev-latest");
+    } finally {
+      restore();
+    }
+  });
+
+  it("calls the global fetch as a method when no custom fetch is injected", async () => {
+    const restore = installWorkerdStyleFetch();
+    try {
+      const provider = new TypeSafeHttpProvider({ apiKey: "test-key" });
+      const result = await provider.evaluate({ state: { ok: true }, questions: {} });
+      expect(result.model).toBe("jev-latest");
+    } finally {
+      restore();
+    }
+  });
+
+  it("maps fetch throws to TypeSafeHttpError", async () => {
+    const provider = new TypeSafeHttpProvider({
+      apiKey: "test-key",
+      fetch: (async () => {
+        throw new TypeError("network down");
+      }) as typeof fetch,
+    });
+    await expect(provider.evaluate({ state: { ok: true }, questions: {} })).rejects.toMatchObject({
+      name: "TypeSafeHttpError",
+      message: "TypeSafe SystemOne request failed: network down",
+    } satisfies Partial<TypeSafeHttpError>);
+  });
 });
+
+/**
+ * workerd's host `fetch` rejects any receiver other than the global
+ * (`TypeError: Illegal invocation`). Node's fetch does not, so tests mock that
+ * branding check. See https://developers.cloudflare.com/workers/observability/errors/#illegal-invocation-errors
+ */
+function installWorkerdStyleFetch(): () => void {
+  const original = globalThis.fetch;
+  function brandedFetch(
+    this: unknown,
+    _input: RequestInfo | URL,
+    _init?: RequestInit,
+  ): Promise<Response> {
+    if (this != null && this !== globalThis) {
+      throw new TypeError(
+        "Illegal invocation: function called with incorrect this reference",
+      );
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ model: "jev-latest", answers: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  }
+  globalThis.fetch = brandedFetch as typeof fetch;
+  return () => {
+    globalThis.fetch = original;
+  };
+}

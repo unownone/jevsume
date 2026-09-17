@@ -40,8 +40,11 @@ function tooLarge(text: string): boolean {
   return text.length > MAX_RESUME_CHARS;
 }
 
-function workerFetch(): typeof fetch {
-  return globalThis.fetch.bind(globalThis);
+function isTypeSafeHttpError(err: unknown): err is TypeSafeHttpError {
+  return (
+    err instanceof TypeSafeHttpError ||
+    (err instanceof Error && err.name === "TypeSafeHttpError")
+  );
 }
 
 export function createStores(env: CloudflareBindings): {
@@ -67,7 +70,7 @@ function engineForEnv(env: CloudflareBindings): ReviewEngine {
   }
   const stores = createStores(env);
   const engine = new ReviewEngine(
-    createProvider(env, workerFetch()),
+    createProvider(env),
     stores.personas,
     stores.resumes,
   );
@@ -110,10 +113,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     if (err instanceof HTTPException) {
       return c.json({ error: err.message }, err.status);
     }
-    if (err instanceof TypeSafeHttpError) {
+    if (isTypeSafeHttpError(err)) {
       return c.json({ error: err.message }, 502);
     }
-    console.error(err);
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error(message, err instanceof Error ? err.stack : err);
     return c.json({ error: "Internal error" }, 500);
   });
 
