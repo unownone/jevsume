@@ -1,0 +1,10 @@
+# Copy to .dev.vars (gitignored) for local wrangler/vite.
+# Never commit a real key. Production:
+#   wrangler secret put TYPESAFE_API_KEY
+#
+# Official env name from TypeSafe JS SDK:
+# https://docs.typesafe.ai/sdk/javascript/api/variables/ENV.md
+TYPESAFE_API_KEY=
+# Optional overrides (also set as wrangler.jsonc vars):
+# TYPESAFE_BASE_URL=https://api.typesafe.ai
+# TYPESAFE_MODEL=jev-latest
