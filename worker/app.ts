@@ -49,6 +49,13 @@ function tooLarge(text: string): boolean {
   return text.length > MAX_RESUME_CHARS;
 }
 
+function isTypeSafeHttpError(err: unknown): err is TypeSafeHttpError {
+  return (
+    err instanceof TypeSafeHttpError ||
+    (err instanceof Error && err.name === "TypeSafeHttpError")
+  );
+}
+
 function queryString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -64,10 +71,6 @@ function queryNumber(value: string | undefined): number | undefined {
 
 function queryLimit(value: string | undefined): number | undefined {
   return queryNumber(value);
-}
-
-function workerFetch(): typeof fetch {
-  return globalThis.fetch.bind(globalThis);
 }
 
 function readCookie(header: string | undefined, name: string): string | undefined {
@@ -101,7 +104,7 @@ function runtimeForEnv(env: CloudflareBindings): EnvRuntime {
   }
   const stores = createStores(env);
   const runtime: EnvRuntime = {
-    engine: new ReviewEngine(createProvider(env, workerFetch()), stores),
+    engine: new ReviewEngine(createProvider(env), stores),
     visitors: stores.visitors,
   };
   runtimeByEnv.set(env, runtime);
@@ -156,10 +159,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     if (err instanceof HTTPException) {
       return c.json({ error: err.message }, err.status);
     }
-    if (err instanceof TypeSafeHttpError) {
+    if (isTypeSafeHttpError(err)) {
       return c.json({ error: err.message }, 502);
     }
-    console.error(err);
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error(message, err instanceof Error ? err.stack : err);
     return c.json({ error: "Internal error" }, 500);
   });
 
