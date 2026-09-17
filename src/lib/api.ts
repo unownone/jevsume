@@ -1,3 +1,9 @@
+import {
+  isRateLimitErrorBody,
+  type RateLimitCheckpoint,
+  type RateLimitErrorBody,
+} from "../../shared/rate-limit.ts";
+
 export type ReviewResponse = {
   mode: "general" | "job";
   jevScore: {
@@ -60,12 +66,40 @@ export type PersonaListItem = {
   createdAt: string;
 };
 
-async function parseJson<T>(response: Response): Promise<T> {
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new Error(body.error ?? `Request failed (${response.status})`);
+export class RateLimitError extends Error {
+  readonly checkpoint: RateLimitCheckpoint;
+  readonly resetAt: string;
+  readonly retryAfterSeconds: number;
+  readonly limit: number;
+  readonly windowSeconds: number;
+
+  constructor(body: RateLimitErrorBody) {
+    super(body.error);
+    this.name = "RateLimitError";
+    this.checkpoint = body.checkpoint;
+    this.resetAt = body.resetAt;
+    this.retryAfterSeconds = body.retryAfterSeconds;
+    this.limit = body.limit;
+    this.windowSeconds = body.windowSeconds;
   }
-  return body;
+}
+
+async function parseJson<T>(response: Response): Promise<T> {
+  const body: unknown = await response.json();
+  if (!response.ok) {
+    if (isRateLimitErrorBody(body)) {
+      throw new RateLimitError(body);
+    }
+    const message =
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      typeof body.error === "string"
+        ? body.error
+        : `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+  return body as T;
 }
 
 export async function fetchHealth(): Promise<{ ok: boolean; provider: string }> {
