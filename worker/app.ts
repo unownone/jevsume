@@ -1,5 +1,8 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
+import { TypeSafeHttpError } from "../packages/jev/http.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
 import { createD1Stores } from "./storage/d1.ts";
 import { createMemoryStores } from "./storage/memory.ts";
@@ -16,6 +19,8 @@ export type AppEnv = {
 export type CreateAppOptions = {
   engine?: ReviewEngine;
 };
+
+const enginesByEnv = new WeakMap<object, ReviewEngine>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -53,6 +58,10 @@ function queryLimit(value: string | undefined): number | undefined {
   return queryNumber(value);
 }
 
+function workerFetch(): typeof fetch {
+  return globalThis.fetch.bind(globalThis);
+}
+
 export function createStores(env: CloudflareBindings): ReviewStores {
   if (env.DB) {
     return createD1Stores(env.DB);
@@ -60,19 +69,56 @@ export function createStores(env: CloudflareBindings): ReviewStores {
   return createMemoryStores();
 }
 
+function engineForEnv(env: CloudflareBindings): ReviewEngine {
+  const cached = enginesByEnv.get(env);
+  if (cached) {
+    return cached;
+  }
+  const engine = new ReviewEngine(createProvider(env, workerFetch()), createStores(env));
+  enginesByEnv.set(env, engine);
+  return engine;
+}
+
+async function jsonObject(c: Context<AppEnv>): Promise<Record<string, unknown>> {
+  const body: unknown = await c.req.json().catch(() => null);
+  if (!isRecord(body)) {
+    throw new HTTPException(400, { message: "Expected JSON body" });
+  }
+  return body;
+}
+
+function requiredString(body: Record<string, unknown>, field: string): string {
+  const value = readString(body[field])?.trim();
+  if (!value) {
+    throw new HTTPException(400, { message: `${field} is required` });
+  }
+  return value;
+}
+
+function assertResumeSize(text: string, label: string): void {
+  if (tooLarge(text)) {
+    throw new HTTPException(413, { message: `${label} exceeds size limit` });
+  }
+}
+
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("/api/*", cors());
 
   app.use("/api/*", async (c, next) => {
-    if (!options.engine) {
-      const stores = createStores(c.env);
-      const engine = new ReviewEngine(createProvider(c.env), stores);
-      c.set("engine", engine);
-    } else {
-      c.set("engine", options.engine);
-    }
+    c.set("engine", options.engine ?? engineForEnv(c.env));
     await next();
+  });
+
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message }, err.status);
+    }
+    if (err instanceof TypeSafeHttpError) {
+      return c.json({ error: err.message }, 502);
+    }
+    console.error(err);
+    return c.json({ error: "Internal error" }, 500);
   });
 
   app.get("/api/health", (c) => {
@@ -86,20 +132,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/personas", async (c) => {
-    const body: unknown = await c.req.json().catch(() => null);
-    if (!isRecord(body)) {
-      return c.json({ error: "Expected JSON body" }, 400);
-    }
-    const title = readString(body.title)?.trim();
-    const jobDescription = readString(body.jobDescription)?.trim();
-    if (!title || !jobDescription) {
-      return c.json({ error: "title and jobDescription are required" }, 400);
-    }
-    if (tooLarge(jobDescription)) {
-      return c.json({ error: "jobDescription exceeds size limit" }, 413);
-    }
-    const engine = c.get("engine");
-    const persona = await engine.createPersona({
+    const body = await jsonObject(c);
+    const title = requiredString(body, "title");
+    const jobDescription = requiredString(body, "jobDescription");
+    assertResumeSize(jobDescription, "jobDescription");
+    const persona = await c.get("engine").createPersona({
       title,
       jobDescription,
       tags: readTags(body.tags),
@@ -108,8 +145,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/personas", async (c) => {
-    const engine = c.get("engine");
-    const items = await engine.listPersonas({
+    const items = await c.get("engine").listPersonas({
       q: queryString(c.req.query("q")),
       tag: queryString(c.req.query("tag")),
       limit: queryLimit(c.req.query("limit")),
@@ -126,28 +162,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/personas/:id", async (c) => {
-    const engine = c.get("engine");
-    const persona = await engine.getPersona(c.req.param("id"));
+    const persona = await c.get("engine").getPersona(c.req.param("id"));
     if (!persona) {
-      return c.json({ error: "Persona not found" }, 404);
+      throw new HTTPException(404, { message: "Persona not found" });
     }
     return c.json(persona);
   });
 
   app.post("/api/resumes", async (c) => {
-    const body: unknown = await c.req.json().catch(() => null);
-    if (!isRecord(body)) {
-      return c.json({ error: "Expected JSON body" }, 400);
-    }
-    const text = readString(body.text)?.trim();
-    if (!text) {
-      return c.json({ error: "text is required" }, 400);
-    }
-    if (tooLarge(text)) {
-      return c.json({ error: "resume text exceeds size limit" }, 413);
-    }
-    const engine = c.get("engine");
-    const stored = await engine.persistResume({
+    const body = await jsonObject(c);
+    const text = requiredString(body, "text");
+    assertResumeSize(text, "resume text");
+    const stored = await c.get("engine").persistResume({
       text,
       filename: readString(body.filename),
       source: readString(body.source),
@@ -156,8 +182,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/resumes", async (c) => {
-    const engine = c.get("engine");
-    const items = await engine.listResumes({
+    const items = await c.get("engine").listResumes({
       q: queryString(c.req.query("q")),
       source: queryString(c.req.query("source")),
       limit: queryLimit(c.req.query("limit")),
@@ -175,28 +200,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/resumes/:id", async (c) => {
-    const engine = c.get("engine");
-    const resume = await engine.getResume(c.req.param("id"));
+    const resume = await c.get("engine").getResume(c.req.param("id"));
     if (!resume) {
-      return c.json({ error: "Resume not found" }, 404);
+      throw new HTTPException(404, { message: "Resume not found" });
     }
     return c.json(resume);
   });
 
   app.post("/api/reviews", async (c) => {
-    const body: unknown = await c.req.json().catch(() => null);
-    if (!isRecord(body)) {
-      return c.json({ error: "Expected JSON body" }, 400);
-    }
-    const resumeText = readString(body.resumeText)?.trim();
-    if (!resumeText) {
-      return c.json({ error: "resumeText is required" }, 400);
-    }
-    if (tooLarge(resumeText)) {
-      return c.json({ error: "resume text exceeds size limit" }, 413);
-    }
-    const engine = c.get("engine");
-    const review = await engine.generalReview(resumeText, {
+    const body = await jsonObject(c);
+    const resumeText = requiredString(body, "resumeText");
+    assertResumeSize(resumeText, "resume text");
+    const review = await c.get("engine").generalReview(resumeText, {
       filename: readString(body.filename),
       source: readString(body.source),
     });
@@ -204,25 +219,16 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/reviews/job", async (c) => {
-    const body: unknown = await c.req.json().catch(() => null);
-    if (!isRecord(body)) {
-      return c.json({ error: "Expected JSON body" }, 400);
-    }
-    const resumeText = readString(body.resumeText)?.trim();
-    const personaId = readString(body.personaId)?.trim();
-    if (!resumeText || !personaId) {
-      return c.json({ error: "resumeText and personaId are required" }, 400);
-    }
-    if (tooLarge(resumeText)) {
-      return c.json({ error: "resume text exceeds size limit" }, 413);
-    }
-    const engine = c.get("engine");
-    const review = await engine.jobReview(resumeText, personaId, {
+    const body = await jsonObject(c);
+    const resumeText = requiredString(body, "resumeText");
+    const personaId = requiredString(body, "personaId");
+    assertResumeSize(resumeText, "resume text");
+    const review = await c.get("engine").jobReview(resumeText, personaId, {
       filename: readString(body.filename),
       source: readString(body.source),
     });
     if ("error" in review) {
-      return c.json({ error: "Persona not found" }, 404);
+      throw new HTTPException(404, { message: "Persona not found" });
     }
     return c.json(review);
   });
@@ -230,11 +236,13 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.get("/api/evals", async (c) => {
     const kindParam = queryString(c.req.query("kind"));
     if (kindParam !== undefined && !isEvalKind(kindParam)) {
-      return c.json({ error: "kind must be general_review, job_review, or persona_build" }, 400);
+      throw new HTTPException(400, {
+        message: "kind must be general_review, job_review, or persona_build",
+      });
     }
     const providerParam = queryString(c.req.query("provider"));
     if (providerParam !== undefined && providerParam !== "jev" && providerParam !== "mock") {
-      return c.json({ error: "provider must be jev or mock" }, 400);
+      throw new HTTPException(400, { message: "provider must be jev or mock" });
     }
     const filter: EvalListFilter = {
       kind: kindParam,
@@ -246,16 +254,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       maxScore: queryNumber(c.req.query("maxScore")),
       limit: queryLimit(c.req.query("limit")),
     };
-    const engine = c.get("engine");
-    const items = await engine.listEvals(filter);
+    const items = await c.get("engine").listEvals(filter);
     return c.json({ items });
   });
 
   app.get("/api/evals/:id", async (c) => {
-    const engine = c.get("engine");
-    const run = await engine.getEval(c.req.param("id"));
+    const run = await c.get("engine").getEval(c.req.param("id"));
     if (!run) {
-      return c.json({ error: "Eval run not found" }, 404);
+      throw new HTTPException(404, { message: "Eval run not found" });
     }
     return c.json(run);
   });

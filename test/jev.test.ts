@@ -5,6 +5,7 @@ import {
   buildPersonaQuestions,
 } from "../packages/jev/questions.ts";
 import { GENERAL_WEIGHTS, toJevScore } from "../packages/jev/score.ts";
+import { TypeSafeHttpProvider } from "../packages/jev/http.ts";
 import { MockJudgmentProvider } from "../packages/jev/mock.ts";
 import {
   requirementsFromPersonaAnswers,
@@ -266,5 +267,23 @@ describe("MockJudgmentProvider", () => {
     expect(provider.id).toBe("mock");
     expect(Object.keys(result.answers).sort()).toEqual(Object.keys(questions).sort());
     expect(result.answers.metrics?.type).toBe("score");
+  });
+});
+
+describe("TypeSafeHttpProvider", () => {
+  it("POSTs SystemOne through the injected fetch", async () => {
+    const provider = new TypeSafeHttpProvider({
+      apiKey: "test-key",
+      fetch: (async (input, init) => {
+        expect(String(input)).toBe("https://api.typesafe.ai/v1/systemone");
+        expect(init?.method).toBe("POST");
+        return new Response(JSON.stringify({ model: "jev-latest", answers: {} }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as typeof fetch,
+    });
+    const result = await provider.evaluate({ state: { ok: true }, questions: {} });
+    expect(result.model).toBe("jev-latest");
   });
 });
