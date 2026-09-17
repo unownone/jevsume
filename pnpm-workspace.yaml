@@ -1,6 +1,15 @@
+# Single-package app. Cloudflare Workers Builds (pnpm 10.11.1) treats the
+# presence of this file as a workspace and fails with
+# `ERROR packages field missing or empty` unless `packages` is set.
+# `packages/jev` is a source folder, not a workspace package.
+packages:
+  - "."
+
+# vite + wrangler need these postinstall binaries. `false` blocks CI builds.
 allowBuilds:
-  esbuild: false
-  workerd: false
+  esbuild: true
+  workerd: true
+
 minimumReleaseAgeExclude:
   - '@cloudflare/vite-plugin@1.55.0'
   - '@cloudflare/workerd-darwin-64@1.20260917.1'
