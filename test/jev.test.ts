@@ -128,12 +128,19 @@ describe("transformers", () => {
             probabilities: { metrics: 1 },
             confidence: 0.7,
           },
+          sec_s1_kind: {
+            type: "choice",
+            choice: "education",
+            probabilities: { education: 1 },
+            confidence: 0.9,
+          },
         },
       },
     });
     expect(review.mode).toBe("general");
     expect(review.suggestions.some((item) => item.id === "metrics")).toBe(true);
     expect(review.findings.some((item) => item.id === "weakest")).toBe(true);
+    expect(review.sections[0]?.kind).toBe("experience");
   });
 
   it("keeps persona requirements above the noul threshold", () => {

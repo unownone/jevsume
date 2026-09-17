@@ -183,7 +183,10 @@ function annotateSections(
   return sections.map((section) => {
     const quality = asScore(answers[`sec_${section.id}_quality`]);
     const kindChoice = asChoice(answers[`sec_${section.id}_kind`]);
-    const kind = kindChoice ? coerceSectionKind(kindChoice.choice, section.kind) : section.kind;
+    const kind =
+      section.kind === "other" && kindChoice
+        ? coerceSectionKind(kindChoice.choice, section.kind)
+        : section.kind;
     return {
       ...section,
       kind,
