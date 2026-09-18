@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { TypeSafeHttpError } from "../packages/jev/http.ts";
+import { DEFAULT_PERSONA_ID } from "../packages/jev/index.ts";
 import {
   RATE_LIMIT_CHECKPOINTS,
   type RateLimitCheckpoint,
@@ -11,24 +12,32 @@ import {
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
 import { MemoryRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
 import { createD1Stores } from "./storage/d1.ts";
-import { createMemoryStores } from "./storage/memory.ts";
-import type { EvalListFilter, ReviewStores } from "./storage/types.ts";
+import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
+import { ensureD1Schema } from "./storage/schema.ts";
+import type { EvalListFilter, ReviewStores, VisitorStore } from "./storage/types.ts";
 import { isEvalKind } from "./storage/types.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
   Variables: {
     engine: ReviewEngine;
+    visitors: VisitorStore;
     rateLimiter: RateLimiter;
   };
 };
 
 export type CreateAppOptions = {
   engine?: ReviewEngine;
+  visitors?: VisitorStore;
   rateLimiter?: RateLimiter;
 };
 
-const enginesByEnv = new WeakMap<object, ReviewEngine>();
+type EnvRuntime = {
+  engine: ReviewEngine;
+  visitors: VisitorStore;
+};
+
+const runtimeByEnv = new WeakMap<object, Promise<EnvRuntime>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -73,6 +82,23 @@ function queryLimit(value: string | undefined): number | undefined {
   return queryNumber(value);
 }
 
+function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) {
+    return undefined;
+  }
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) {
+      return rest.join("=");
+    }
+  }
+  return undefined;
+}
+
+function isVisitorId(value: string): boolean {
+  return /^[A-Za-z0-9._-]{8,128}$/.test(value);
+}
+
 export function createStores(env: CloudflareBindings): ReviewStores {
   if (env.DB) {
     return createD1Stores(env.DB);
@@ -80,14 +106,28 @@ export function createStores(env: CloudflareBindings): ReviewStores {
   return createMemoryStores();
 }
 
-function engineForEnv(env: CloudflareBindings): ReviewEngine {
-  const cached = enginesByEnv.get(env);
+function runtimeForEnv(env: CloudflareBindings): Promise<EnvRuntime> {
+  const cached = runtimeByEnv.get(env);
   if (cached) {
     return cached;
   }
-  const engine = new ReviewEngine(createProvider(env), createStores(env));
-  enginesByEnv.set(env, engine);
-  return engine;
+  const pending = (async () => {
+    try {
+      if (env.DB) {
+        await ensureD1Schema(env.DB);
+      }
+      const stores = createStores(env);
+      return {
+        engine: new ReviewEngine(createProvider(env), stores),
+        visitors: stores.visitors,
+      };
+    } catch (error) {
+      runtimeByEnv.delete(env);
+      throw error;
+    }
+  })();
+  runtimeByEnv.set(env, pending);
+  return pending;
 }
 
 async function jsonObject(c: Context<AppEnv>): Promise<Record<string, unknown>> {
@@ -146,9 +186,22 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   const rateLimiter = options.rateLimiter ?? new MemoryRateLimiter();
   app.use("/api/*", cors());
+  let memoryVisitors: MemoryVisitorStore | undefined;
 
   app.use("/api/*", async (c, next) => {
-    c.set("engine", options.engine ?? engineForEnv(c.env));
+    if (options.engine) {
+      c.set("engine", options.engine);
+      if (options.visitors) {
+        c.set("visitors", options.visitors);
+      } else {
+        memoryVisitors ??= new MemoryVisitorStore();
+        c.set("visitors", memoryVisitors);
+      }
+    } else {
+      const runtime = await runtimeForEnv(c.env);
+      c.set("engine", runtime.engine);
+      c.set("visitors", options.visitors ?? runtime.visitors);
+    }
     c.set("rateLimiter", rateLimiter);
     await next();
   });
@@ -182,6 +235,36 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       storage: engine.storageKind(),
       time: new Date().toISOString(),
     });
+  });
+
+  app.get("/api/visitors", async (c) => {
+    return c.json({ uniqueVisitors: await c.get("visitors").count() });
+  });
+
+  app.post("/api/visitors", async (c) => {
+    const body: unknown = await c.req.json().catch(() => null);
+    const fromBody = isRecord(body) ? readString(body.visitorId)?.trim() : undefined;
+    const fromCookie = readCookie(c.req.header("Cookie"), "jevsume_vid");
+    const visitorId =
+      (fromBody && isVisitorId(fromBody) ? fromBody : undefined) ??
+      (fromCookie && isVisitorId(fromCookie) ? fromCookie : undefined) ??
+      crypto.randomUUID();
+    const recorded = await c.get("visitors").record(visitorId);
+    c.header("Set-Cookie", `jevsume_vid=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax`);
+    return c.json({ uniqueVisitors: recorded.uniqueVisitors, visitorId });
+  });
+
+  app.get("/api/job-personas", async (c) => {
+    const items = await c.get("engine").listJobPersonas();
+    return c.json({ defaultId: DEFAULT_PERSONA_ID, items });
+  });
+
+  app.get("/api/job-personas/:id", async (c) => {
+    const persona = await c.get("engine").getJobPersona(c.req.param("id"));
+    if (!persona) {
+      throw new HTTPException(404, { message: "Persona not found" });
+    }
+    return c.json(persona);
   });
 
   app.post("/api/personas", async (c) => {
@@ -266,10 +349,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
-    const review = await c.get("engine").generalReview(resumeText, {
+    const personaId = readString(body.personaId)?.trim();
+    const review = await c.get("engine").review(resumeText, personaId, {
       filename: readString(body.filename),
       source: readString(body.source),
     });
+    if ("error" in review) {
+      throw new HTTPException(404, { message: "Persona not found" });
+    }
     return c.json(review);
   });
 

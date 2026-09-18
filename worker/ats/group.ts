@@ -44,7 +44,8 @@ function cleanLine(line: string): string {
 
 export function groupResumeText(text: string): GroupedResume {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\u00a0/g, " ");
-  const lines = normalized.split("\n");
+  const textBody = normalized.trim();
+  const lines = textBody.length === 0 ? [] : textBody.split("\n");
   const sections: ResumeSection[] = [];
   let current: ResumeSection | null = null;
   let sectionIndex = 0;
@@ -58,12 +59,22 @@ export function groupResumeText(text: string): GroupedResume {
       kind,
       text: "",
       fragments: [],
+      start: 0,
+      end: 0,
+      line: 1,
     };
     sections.push(section);
     return section;
   };
 
-  for (const raw of lines) {
+  let offset = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index] ?? "";
+    const start = offset;
+    const end = offset + raw.length;
+    const line = index + 1;
+    offset = end + (index < lines.length - 1 ? 1 : 0);
+
     const heading = classifyHeading(raw);
     if (heading) {
       current = startSection(heading.heading, heading.kind);
@@ -72,6 +83,9 @@ export function groupResumeText(text: string): GroupedResume {
         id: `${current.id}-h`,
         text: heading.heading,
         kind: "heading",
+        start,
+        end,
+        line,
       });
       continue;
     }
@@ -91,6 +105,9 @@ export function groupResumeText(text: string): GroupedResume {
       id: `${current.id}-f${fragmentIndex}`,
       text: cleanLine(raw),
       kind,
+      start,
+      end,
+      line,
     });
   }
 
@@ -99,9 +116,14 @@ export function groupResumeText(text: string): GroupedResume {
       .filter((fragment) => fragment.kind !== "heading")
       .map((fragment) => fragment.text)
       .join("\n");
+    if (section.fragments.length > 0) {
+      section.start = Math.min(...section.fragments.map((fragment) => fragment.start));
+      section.end = Math.max(...section.fragments.map((fragment) => fragment.end));
+      section.line = section.fragments[0]?.line ?? 1;
+    }
   }
 
-  return { text: normalized.trim(), sections };
+  return { text: textBody, sections };
 }
 
 export function extractRequirementCandidates(jobDescription: string, limit = 24): string[] {

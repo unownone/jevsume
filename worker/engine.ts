@@ -2,7 +2,11 @@ import {
   buildGeneralReviewQuestions,
   buildJobReviewQuestions,
   buildPersonaQuestions,
+  DEFAULT_PERSONA,
+  DEFAULT_PERSONA_ID,
+  estimateInputCostUsd,
   MockJudgmentProvider,
+  personaBlurb,
   requirementsFromPersonaAnswers,
   transformGeneralReview,
   transformJobReview,
@@ -28,12 +32,73 @@ import type {
   StorageKind,
 } from "./storage/types.ts";
 
+export type JobPersonaCatalogItem = {
+  id: string;
+  title: string;
+  tags: string[];
+  isDefault: boolean;
+  summary: string;
+  explanation: string;
+  requirementCount: number;
+  createdAt: string;
+  jobDescription?: string;
+};
+
+function catalogFromDefault(includeDescription = false): JobPersonaCatalogItem {
+  const item: JobPersonaCatalogItem = {
+    id: DEFAULT_PERSONA.id,
+    title: DEFAULT_PERSONA.title,
+    tags: [...DEFAULT_PERSONA.tags],
+    isDefault: true,
+    summary: DEFAULT_PERSONA.summary,
+    explanation: DEFAULT_PERSONA.explanation,
+    requirementCount: 0,
+    createdAt: DEFAULT_PERSONA.createdAt,
+  };
+  if (includeDescription) {
+    item.jobDescription = DEFAULT_PERSONA.jobDescription;
+  }
+  return item;
+}
+
+function catalogFromStored(persona: JobPersona, includeDescription = false): JobPersonaCatalogItem {
+  const blurb = personaBlurb(persona);
+  const item: JobPersonaCatalogItem = {
+    id: persona.id,
+    title: persona.title,
+    tags: persona.tags,
+    isDefault: false,
+    summary: blurb.summary,
+    explanation: blurb.explanation,
+    requirementCount: persona.requirements.length,
+    createdAt: persona.createdAt,
+  };
+  if (includeDescription) {
+    item.jobDescription = persona.jobDescription;
+  }
+  return item;
+}
+
+function telemetryFrom(result: SystemOneResult, serverMs: number) {
+  const inputTokens = result.usage?.input_tokens ?? 0;
+  return {
+    serverMs,
+    inputTokens,
+    costUsd: estimateInputCostUsd(inputTokens),
+  };
+}
+
 export const MAX_RESUME_CHARS = 120_000;
 
 export type EngineBindings = {
   TYPESAFE_API_KEY?: string;
   TYPESAFE_BASE_URL?: string;
   TYPESAFE_MODEL?: string;
+};
+
+export type ResumeMeta = {
+  filename?: string;
+  source?: string;
 };
 
 export type PersistedReview = ReviewResponse & {
@@ -141,6 +206,22 @@ export class ReviewEngine {
     return this.stores.personas.list(filter);
   }
 
+  async listJobPersonas(): Promise<JobPersonaCatalogItem[]> {
+    const stored = await this.stores.personas.list();
+    return [catalogFromDefault(), ...stored.map((persona) => catalogFromStored(persona))];
+  }
+
+  async getJobPersona(id: string): Promise<JobPersonaCatalogItem | null> {
+    if (id === DEFAULT_PERSONA_ID) {
+      return catalogFromDefault(true);
+    }
+    const persona = await this.stores.personas.get(id);
+    if (!persona) {
+      return null;
+    }
+    return catalogFromStored(persona, true);
+  }
+
   getEval(id: string): ReturnType<ReviewStores["evals"]["get"]> {
     return this.stores.evals.get(id);
   }
@@ -149,10 +230,24 @@ export class ReviewEngine {
     return this.stores.evals.list(filter);
   }
 
-  async generalReview(
+  async review(
     resumeText: string,
-    meta?: { filename?: string; source?: string },
-  ): Promise<PersistedReview> {
+    personaId?: string,
+    meta?: ResumeMeta,
+  ): Promise<PersistedReview | { error: "not_found" }> {
+    if (!personaId || personaId === DEFAULT_PERSONA_ID) {
+      return this.generalReview(resumeText, meta);
+    }
+    return this.jobReview(resumeText, personaId, meta);
+  }
+
+  private async evaluate(input: SystemOneRequest): Promise<{ result: SystemOneResult; serverMs: number }> {
+    const started = performance.now();
+    const result = await this.provider.evaluate(input);
+    return { result, serverMs: Math.max(0, Math.round(performance.now() - started)) };
+  }
+
+  async generalReview(resumeText: string, meta?: ResumeMeta): Promise<PersistedReview> {
     const stored = await this.persistResume({
       text: resumeText,
       filename: meta?.filename,
@@ -163,11 +258,13 @@ export class ReviewEngine {
       state: { resume: grouped },
       questions: buildGeneralReviewQuestions(grouped.sections.map((section) => section.id)),
     };
-    const result = await this.provider.evaluate(request);
+    const { result, serverMs } = await this.evaluate(request);
     const review = transformGeneralReview({
       result,
       sections: grouped.sections,
       provider: this.provider.id,
+      resumeText: grouped.text,
+      telemetry: telemetryFrom(result, serverMs),
     });
     const evalRun = await this.persistEval({
       kind: "general_review",
@@ -184,7 +281,7 @@ export class ReviewEngine {
   async jobReview(
     resumeText: string,
     personaId: string,
-    meta?: { filename?: string; source?: string },
+    meta?: ResumeMeta,
   ): Promise<PersistedReview | { error: "not_found" }> {
     const persona = await this.stores.personas.get(personaId);
     if (!persona) {
@@ -211,12 +308,14 @@ export class ReviewEngine {
         grouped.sections.map((section) => section.id),
       ),
     };
-    const result = await this.provider.evaluate(request);
+    const { result, serverMs } = await this.evaluate(request);
     const review = transformJobReview({
       result,
       persona,
       sections: grouped.sections,
       provider: this.provider.id,
+      resumeText: grouped.text,
+      telemetry: telemetryFrom(result, serverMs),
     });
     const evalRun = await this.persistEval({
       kind: "job_review",

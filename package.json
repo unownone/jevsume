@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "wrangler d1 migrations apply jevsume --local",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",

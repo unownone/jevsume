@@ -7,18 +7,22 @@ import {
   secondsUntil,
   type RateLimitCheckpoint,
 } from "../shared/rate-limit.ts";
+import { FindingsPanel } from "./components/FindingsPanel.tsx";
+import { PersonaControls } from "./components/PersonaControls.tsx";
+import { ResumeCanvas } from "./components/ResumeCanvas.tsx";
+import { ReviewMeta } from "./components/ReviewMeta.tsx";
 import {
   RateLimitError,
   createPersona,
-  fetchHealth,
-  generalReview,
-  jobReview,
-  listPersonas,
+  listJobPersonas,
+  recordVisitor,
+  runReview,
   storeResume,
-  type PersonaListItem,
+  type JobPersonaItem,
   type ReviewResponse,
 } from "./lib/api.ts";
 import { extractFromFile } from "./lib/extract.ts";
+import { loadVisitorId, persistVisitorId } from "./lib/visitor.ts";
 
 const DEMO_RESUME = `Jane Doe
 Staff Software Engineer
@@ -45,8 +49,6 @@ const DEMO_JD = `Staff Backend Engineer
 - Comfortable with Terraform and AWS
 Unlimited PTO and a culture of snacks
 `;
-
-type Mode = "general" | "job";
 
 type RateLimitNotice = {
   checkpoint: RateLimitCheckpoint;
@@ -86,7 +88,6 @@ function activeNotices(notices: RateLimitNotices, nowMs: number): RateLimitNotic
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>("general");
   const [resumeText, setResumeText] = useState(DEMO_RESUME);
   const [source, setSource] = useState("paste");
   const [hot, setHot] = useState(false);
@@ -94,24 +95,30 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [rateLimits, setRateLimits] = useState<RateLimitNotices>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [provider, setProvider] = useState("…");
   const [review, setReview] = useState<ReviewResponse | null>(null);
-  const [personas, setPersonas] = useState<PersonaListItem[]>([]);
-  const [personaId, setPersonaId] = useState("");
+  const [clientMs, setClientMs] = useState(0);
+  const [personas, setPersonas] = useState<JobPersonaItem[]>([]);
+  const [personaId, setPersonaId] = useState("default");
+  const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("Staff Backend Engineer");
   const [tags, setTags] = useState("golang, kafka, staff");
   const [jobDescription, setJobDescription] = useState(DEMO_JD);
+  const [visitors, setVisitors] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchHealth()
-      .then((health) => setProvider(health.provider))
-      .catch(() => setProvider("offline"));
-    void listPersonas()
-      .then((items) => {
-        setPersonas(items);
-        if (items[0]) {
-          setPersonaId(items[0].id);
-        }
+    const visitorId = loadVisitorId();
+    void recordVisitor(visitorId)
+      .then((result) => {
+        persistVisitorId(result.visitorId);
+        setVisitors(result.uniqueVisitors);
+      })
+      .catch(() => undefined);
+    void listJobPersonas()
+      .then((catalog) => {
+        setPersonas(catalog.items);
+        setPersonaId(catalog.defaultId);
       })
       .catch(() => undefined);
   }, []);
@@ -159,6 +166,12 @@ export default function App() {
     [review],
   );
 
+  async function refreshPersonas(selectId?: string) {
+    const catalog = await listJobPersonas();
+    setPersonas(catalog.items);
+    setPersonaId(selectId ?? catalog.defaultId);
+  }
+
   async function onFiles(files: FileList | null) {
     const file = files?.[0];
     if (!file) {
@@ -170,7 +183,7 @@ export default function App() {
       setResumeText(extracted.text);
       setSource(extracted.source);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not extract text");
+      setError(caught instanceof Error ? caught.message : "Could not read that file");
     }
   }
 
@@ -190,14 +203,13 @@ export default function App() {
         tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
         jobDescription,
       });
-      setPersonaId(persona.id);
-      const items = await listPersonas();
-      setPersonas(items);
+      setAdding(false);
+      await refreshPersonas(persona.id);
     } catch (caught) {
       if (caught instanceof RateLimitError) {
         rememberRateLimit(caught);
       } else {
-        setError(caught instanceof Error ? caught.message : "Persona create failed");
+        setError(caught instanceof Error ? caught.message : "Could not save that job");
       }
     } finally {
       setBusy(false);
@@ -207,14 +219,13 @@ export default function App() {
   async function onReview() {
     setBusy(true);
     setError(null);
+    const started = performance.now();
     try {
       await storeResume(resumeText, source).catch(() => undefined);
-      const result =
-        mode === "general"
-          ? await generalReview(resumeText)
-          : await jobReview(resumeText, personaId);
+      const result = await runReview(resumeText, personaId);
       setReview(result);
-      setProvider(result.provider);
+      setClientMs(performance.now() - started);
+      setActiveId(result.findings[0]?.id ?? null);
     } catch (caught) {
       if (caught instanceof RateLimitError) {
         rememberRateLimit(caught);
@@ -230,40 +241,45 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
+          <img
+            className="brand-mark"
+            src="/jev-mark.svg"
+            width={36}
+            height={36}
+            alt=""
+            decoding="async"
+          />
           jev<span>sume</span>
         </div>
-        <div className="badge">provider · {provider}</div>
+        {visitors !== null ? (
+          <div className="badge" title="Unique people who have opened this app">
+            {visitors.toLocaleString("en-US")} {visitors === 1 ? "visitor" : "visitors"}
+          </div>
+        ) : (
+          <div className="badge muted">counting visitors…</div>
+        )}
       </header>
 
       <section className="hero">
-        <h1>ATS-native resume review, scored by Jev.</h1>
+        <h1>
+          <img
+            className="hero-mark"
+            src="/jev-mark.svg"
+            width={40}
+            height={40}
+            alt=""
+            decoding="async"
+          />
+          <span>Review resume using Jev</span>
+        </h1>
         <p>
-          Extract text the way a parser would, then run TypeSafe System One judgments —
-          wording, structure, metrics, and a JevScore against a job persona.
+          Drop in a resume, choose who it’s for, and read it with Jev. Notes sit on the lines they
+          belong to.
         </p>
       </section>
 
-      <div className="modes">
-        <button
-          className={mode === "general" ? "mode active" : "mode"}
-          onClick={() => setMode("general")}
-          type="button"
-        >
-          <h2>General review</h2>
-          <p>Calibrate wording, conciseness, structure, and ATS parseability.</p>
-        </button>
-        <button
-          className={mode === "job" ? "mode active" : "mode"}
-          onClick={() => setMode("job")}
-          type="button"
-        >
-          <h2>Per-job review</h2>
-          <p>Drop a resume into a job persona. See what works, what doesn’t, JevScore.</p>
-        </button>
-      </div>
-
-      <div className="grid">
-        <section className="panel">
+      <div className="workspace">
+        <section className="panel composer">
           <div
             className={hot ? "drop hot" : "drop"}
             onDragOver={(event) => {
@@ -273,8 +289,8 @@ export default function App() {
             onDragLeave={() => setHot(false)}
             onDrop={onDrop}
           >
-            <strong>Drop PDF or DOCX</strong>
-            <p>Client-side ATS extract. Nothing is parsed in the Worker.</p>
+            <strong>Drop a PDF or DOCX</strong>
+            <p>Or paste the text. Jev reads the words on the page — nothing flashy, just the resume.</p>
             <div className="row" style={{ justifyContent: "center" }}>
               <label className="ghost">
                 Choose file
@@ -296,53 +312,25 @@ export default function App() {
               setResumeText(event.target.value);
               setSource("paste");
             }}
-            style={{ marginTop: 14 }}
             aria-label="Resume text"
           />
-
-          {mode === "job" ? (
-            <form onSubmit={(event) => void onCreatePersona(event)} style={{ marginTop: 16 }}>
-              <input
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Job title"
-                aria-label="Job title"
-              />
-              <input
-                type="text"
-                value={tags}
-                onChange={(event) => setTags(event.target.value)}
-                placeholder="Tags, comma separated"
-                aria-label="Job tags"
-                style={{ marginTop: 8 }}
-              />
-              <textarea
-                value={jobDescription}
-                onChange={(event) => setJobDescription(event.target.value)}
-                aria-label="Job description"
-                style={{ marginTop: 8, minHeight: 120 }}
-              />
-              <div className="row">
-                <button className="ghost" type="submit" disabled={busy || personaBlocked}>
-                  {personaBlocked ? `Persona limit · ${personaWait}s` : "Save persona"}
-                </button>
-                <select
-                  value={personaId}
-                  onChange={(event) => setPersonaId(event.target.value)}
-                  aria-label="Saved personas"
-                >
-                  <option value="">Select persona</option>
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </form>
-          ) : null}
-
+          <PersonaControls
+            personas={personas}
+            personaId={personaId}
+            onPersonaId={setPersonaId}
+            adding={adding}
+            onToggleAdd={() => setAdding((value) => !value)}
+            title={title}
+            tags={tags}
+            jobDescription={jobDescription}
+            onTitle={setTitle}
+            onTags={setTags}
+            onJobDescription={setJobDescription}
+            onCreate={(event) => void onCreatePersona(event)}
+            busy={busy}
+            personaBlocked={personaBlocked}
+            personaWait={personaWait}
+          />
           <div className="row">
             <button
               className="primary"
@@ -350,13 +338,7 @@ export default function App() {
               disabled={busy || reviewBlocked}
               onClick={() => void onReview()}
             >
-              {busy
-                ? "Scoring…"
-                : reviewBlocked
-                  ? `Review locked · ${reviewWait}s`
-                  : mode === "job"
-                    ? "Run JevScore"
-                    : "Review resume"}
+              {busy ? "Reading…" : reviewBlocked ? `Review locked · ${reviewWait}s` : "Review with Jev"}
             </button>
           </div>
           {notices.map((notice) => (
@@ -373,17 +355,22 @@ export default function App() {
           {error ? <div className="error">{error}</div> : null}
         </section>
 
-        <section className="panel">
+        <section className="panel review" aria-live="polite">
           {review ? (
             <>
-              <div className="orb-wrap">
-                <div className={`orb ${tone}`}>
-                  <strong>{formatJevScore(review.jevScore.value)}</strong>
+              <div className="review-head">
+                <div className="orb-wrap">
+                  <div className={`orb ${tone}`}>
+                    <strong>{formatJevScore(review.jevScore.value)}</strong>
+                  </div>
+                </div>
+                <div>
+                  <h2>{review.persona.title}</h2>
+                  <p className="muted">
+                    Click a note, or a marked line. Each one points at the other.
+                  </p>
                 </div>
               </div>
-              <p style={{ textAlign: "center", color: "var(--muted)", marginTop: 0 }}>
-                JevScore · {review.mode} · {review.model ?? review.provider}
-              </p>
               <div className="bars">
                 {review.dimensions.map((dimension) => (
                   <div className="bar" key={dimension.id}>
@@ -396,53 +383,45 @@ export default function App() {
                     <div className="track">
                       <div
                         className="fill"
-                        style={{ width: `${(dimension.score / dimension.max) * 100}%` }}
+                        style={{ transform: `scaleX(${dimension.score / dimension.max})` }}
                       />
                     </div>
                   </div>
                 ))}
               </div>
-              <h3>Findings</h3>
-              <div className="chips">
-                {review.findings.map((item) => (
-                  <span className={`chip ${item.severity}`} key={item.id} title={item.detail}>
-                    {item.title}
-                  </span>
-                ))}
+              <div className="annotation">
+                <ResumeCanvas
+                  text={review.resumeText}
+                  findings={review.findings}
+                  activeId={activeId}
+                  hoveredId={hoveredId}
+                  onSelect={setActiveId}
+                  onHover={setHoveredId}
+                />
+                <FindingsPanel
+                  findings={review.findings}
+                  suggestions={review.suggestions}
+                  activeId={activeId}
+                  hoveredId={hoveredId}
+                  onSelect={setActiveId}
+                  onHover={setHoveredId}
+                />
               </div>
-              {review.requirements?.length ? (
-                <>
-                  <h3>Persona mapping</h3>
-                  <div className="chips">
-                    {review.requirements.map((req) => (
-                      <span className={`chip ${req.verdict}`} key={req.id}>
-                        {req.verdict}: {req.text.slice(0, 48)}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-              <h3>Suggestions</h3>
-              <ul className="suggestions">
-                {review.suggestions.map((item) => (
-                  <li key={item.id}>{item.text}</li>
-                ))}
-              </ul>
-              <div className="sections">
-                {review.sections.map((section) => (
-                  <article className="section" key={section.id}>
-                    <h3>
-                      {section.heading} · {section.kind}
-                    </h3>
-                    <p>{section.text || "—"}</p>
-                  </article>
-                ))}
-              </div>
+              <ReviewMeta
+                clientMs={clientMs}
+                serverMs={review.telemetry.serverMs}
+                inputTokens={review.telemetry.inputTokens}
+                costUsd={review.telemetry.costUsd}
+              />
             </>
           ) : (
-            <p style={{ color: "var(--muted)" }}>
-              Run a review to see grouped sections, dimension scores, and JevScore.
-            </p>
+            <div className="empty">
+              <h2>Notes live on the resume</h2>
+              <p>
+                After a review, marked lines and Jev’s notes stay linked. Click a passage to read
+                why; open a note to jump back to the line.
+              </p>
+            </div>
           )}
         </section>
       </div>

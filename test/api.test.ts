@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { MockJudgmentProvider, TypeSafeHttpError } from "../packages/jev/index.ts";
+import {
+  INPUT_TOKEN_USD_PER_MILLION,
+  MockJudgmentProvider,
+  TypeSafeHttpError,
+} from "../packages/jev/index.ts";
 import { RATE_LIMIT_CHECKPOINTS, type RateLimitErrorBody } from "../shared/rate-limit.ts";
 import { clientIp, createApp } from "../worker/app.ts";
 import { ReviewEngine } from "../worker/engine.ts";
 import { MemoryRateLimiter } from "../worker/rate-limit.ts";
 import { createMemoryStores } from "../worker/storage/memory.ts";
+import { D1_SCHEMA_STATEMENTS, ensureD1Schema } from "../worker/storage/schema.ts";
+import { createSqliteD1, emptyD1Env } from "./sqlite-d1.ts";
 
 function testApp() {
-  const engine = new ReviewEngine(new MockJudgmentProvider(), createMemoryStores());
-  return createApp({ engine });
+  const stores = createMemoryStores();
+  const engine = new ReviewEngine(new MockJudgmentProvider(), stores);
+  return createApp({ engine, visitors: stores.visitors });
 }
 
 const SAMPLE_RESUME = `Summary
@@ -241,6 +248,105 @@ describe("Hono API", () => {
     expect(res.status).toBe(400);
   });
 
+  it("lists the default job persona and any stored job personas", async () => {
+    const app = testApp();
+    const empty = await app.request("/api/job-personas");
+    expect(empty.status).toBe(200);
+    const emptyBody = (await empty.json()) as {
+      defaultId: string;
+      items: {
+        id: string;
+        title: string;
+        isDefault: boolean;
+        summary: string;
+        explanation: string;
+      }[];
+    };
+    expect(emptyBody.defaultId).toBe("default");
+    expect(emptyBody.items.some((item) => item.isDefault && item.id === "default")).toBe(true);
+    expect(emptyBody.items[0]?.explanation.length).toBeGreaterThan(20);
+
+    const created = await app.request("/api/personas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Staff Backend Engineer",
+        tags: ["golang"],
+        jobDescription: "- 5+ years building event-driven services in Go",
+      }),
+    });
+    const persona = (await created.json()) as { id: string };
+    const listed = await app.request("/api/job-personas");
+    const listedBody = (await listed.json()) as { items: { id: string; isDefault: boolean }[] };
+    expect(listedBody.items.some((item) => item.id === persona.id && !item.isDefault)).toBe(true);
+
+    const fetched = await app.request(`/api/job-personas/${persona.id}`);
+    expect(fetched.status).toBe(200);
+  });
+
+  it("reviews against the default persona without a job-specific posting", async () => {
+    const app = testApp();
+    const review = await app.request("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeText: SAMPLE_RESUME, personaId: "default" }),
+    });
+    expect(review.status).toBe(200);
+    const body = (await review.json()) as {
+      mode: string;
+      persona: { id: string; title: string; isDefault: boolean };
+      resumeText: string;
+      findings: { id: string; span: { start: number; end: number; fragmentId: string } }[];
+      suggestions: { id: string; span?: { start: number; end: number } }[];
+      telemetry: { serverMs: number; inputTokens: number; costUsd: number };
+    };
+    expect(body.mode).toBe("general");
+    expect(body.persona.isDefault).toBe(true);
+    expect(body.resumeText).toContain("Staff engineer");
+    expect(body.findings.length).toBeGreaterThan(0);
+    for (const finding of body.findings) {
+      expect(finding.span.end).toBeGreaterThan(finding.span.start);
+      expect(body.resumeText.slice(finding.span.start, finding.span.end).length).toBeGreaterThan(0);
+    }
+    expect(body.telemetry.serverMs).toBeGreaterThanOrEqual(0);
+    expect(body.telemetry.inputTokens).toBeGreaterThan(0);
+    expect(body.telemetry.costUsd).toBeCloseTo(
+      (body.telemetry.inputTokens / 1_000_000) * INPUT_TOKEN_USD_PER_MILLION,
+      10,
+    );
+  });
+
+  it("counts unique visitors once per visitor id", async () => {
+    const app = testApp();
+    const first = await app.request("/api/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: "visitor-one" }),
+    });
+    expect(first.status).toBe(200);
+    const firstBody = (await first.json()) as { uniqueVisitors: number; visitorId: string };
+    expect(firstBody.visitorId).toBe("visitor-one");
+    expect(firstBody.uniqueVisitors).toBe(1);
+
+    const again = await app.request("/api/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: "visitor-one" }),
+    });
+    expect((await again.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
+
+    const second = await app.request("/api/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: "visitor-two" }),
+    });
+    const secondBody = (await second.json()) as { uniqueVisitors: number };
+    expect(secondBody.uniqueVisitors).toBe(2);
+
+    const counted = await app.request("/api/visitors");
+    expect((await counted.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(2);
+  });
+
   it("returns JSON 502 when TypeSafe HTTP fails", async () => {
     const engine = new ReviewEngine(
       {
@@ -261,6 +367,70 @@ describe("Hono API", () => {
     expect(await res.json()).toEqual({
       error: "TypeSafe SystemOne failed (422): bad questions",
     });
+  });
+
+  it("bootstraps an unmigrated D1 so first-run job personas and visitors work", async () => {
+    const app = createApp();
+    const env = emptyD1Env(createSqliteD1());
+
+    const listed = await app.request("/api/job-personas", {}, env);
+    expect(listed.status).toBe(200);
+    const catalog = (await listed.json()) as {
+      defaultId: string;
+      items: { id: string; isDefault: boolean }[];
+    };
+    expect(catalog.defaultId).toBe("default");
+    expect(catalog.items.some((item) => item.isDefault && item.id === "default")).toBe(true);
+
+    const recorded = await app.request(
+      "/api/visitors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "first-run-visitor" }),
+      },
+      env,
+    );
+    expect(recorded.status).toBe(200);
+    const body = (await recorded.json()) as { uniqueVisitors: number; visitorId: string };
+    expect(body.visitorId).toBe("first-run-visitor");
+    expect(body.uniqueVisitors).toBe(1);
+
+    const review = await app.request(
+      "/api/reviews",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeText: SAMPLE_RESUME, personaId: "default" }),
+      },
+      env,
+    );
+    expect(review.status).toBe(200);
+    const reviewed = (await review.json()) as { mode: string; findings: unknown[] };
+    expect(reviewed.mode).toBe("general");
+    expect(reviewed.findings.length).toBeGreaterThan(0);
+  });
+
+  it("applies D1 schema as separate prepare/run statements, not exec", async () => {
+    const statements: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        statements.push(sql);
+        return {
+          async run() {
+            return { success: true as const, results: [], meta: { changes: 0 } };
+          },
+        };
+      },
+      async exec() {
+        throw new Error("D1.exec splits multi-line CREATE TABLE and must not be used");
+      },
+    } as unknown as D1Database;
+
+    await ensureD1Schema(db);
+    expect(statements).toEqual([...D1_SCHEMA_STATEMENTS]);
+    await ensureD1Schema(db);
+    expect(statements).toHaveLength(D1_SCHEMA_STATEMENTS.length);
   });
 
   it("returns JSON when the judgment provider throws instead of Hono plaintext 500", async () => {

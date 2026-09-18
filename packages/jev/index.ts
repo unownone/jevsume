@@ -6,6 +6,8 @@ export {
   QUALITY_LEVELS,
 } from "./questions.ts";
 export { GENERAL_WEIGHTS, JOB_SCORE_WEIGHTS, normalizeScore, toJevScore } from "./score.ts";
+export { estimateInputCostUsd, INPUT_TOKEN_USD_PER_MILLION } from "./cost.ts";
+export { DEFAULT_PERSONA, DEFAULT_PERSONA_ID, personaBlurb } from "./default-persona.ts";
 export {
   requirementsFromPersonaAnswers,
   transformGeneralReview,

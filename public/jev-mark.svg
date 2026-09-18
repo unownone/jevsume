@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Jev">
+  <rect width="32" height="32" rx="8" fill="#101018"/>
+  <rect x="1.15" y="1.15" width="29.7" height="29.7" rx="6.85" fill="none" stroke="#e8c572" stroke-opacity="0.42" stroke-width="0.9"/>
+  <path d="M16.6 21.35H10.55V10.55H21.7v3.15" fill="none" stroke="#e8c572" stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="15.45" y="14.15" width="3.9" height="3.9" rx="0.35" fill="#7ee0d6" transform="rotate(45 17.4 16.1)"/>
+</svg>

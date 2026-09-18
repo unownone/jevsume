@@ -110,4 +110,15 @@ export type ReviewStores = {
   personas: PersonaStore;
   resumes: ResumeStore;
   evals: EvalStore;
+  visitors: VisitorStore;
+};
+
+export type VisitorRecordResult = {
+  uniqueVisitors: number;
+  created: boolean;
+};
+
+export type VisitorStore = {
+  record(visitorId: string): Promise<VisitorRecordResult>;
+  count(): Promise<number>;
 };

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="jevsume">
+  <rect width="1200" height="630" fill="#07070d"/>
+  <circle cx="180" cy="-40" r="420" fill="#e8c572" fill-opacity="0.12"/>
+  <circle cx="1080" cy="40" r="360" fill="#7ee0d6" fill-opacity="0.1"/>
+  <g transform="translate(118,183)">
+    <svg x="0" y="0" width="264" height="264" viewBox="0 0 32 32">
+      <rect width="32" height="32" rx="8" fill="#101018"/>
+      <rect x="1.15" y="1.15" width="29.7" height="29.7" rx="6.85" fill="none" stroke="#e8c572" stroke-opacity="0.42" stroke-width="0.9"/>
+      <path d="M16.6 21.35H10.55V10.55H21.7v3.15" fill="none" stroke="#e8c572" stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="15.45" y="14.15" width="3.9" height="3.9" rx="0.35" fill="#7ee0d6" transform="rotate(45 17.4 16.1)"/>
+    </svg>
+  </g>
+  <text x="422" y="318" fill="#f4f1ea" font-family="Syne, Avenir Next, Segoe UI, sans-serif" font-size="92" font-weight="800" letter-spacing="-3.5">jev<tspan fill="#e8c572">sume</tspan></text>
+  <text x="426" y="372" fill="#9a9588" font-family="Instrument Sans, Segoe UI, sans-serif" font-size="28" font-weight="500">Review resume using Jev</text>
+</svg>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RateLimitError, createPersona, generalReview } from "../src/lib/api.ts";
+import { RateLimitError, createPersona, runReview } from "../src/lib/api.ts";
 
 describe("API client rate limits", () => {
   afterEach(() => {
@@ -25,7 +25,7 @@ describe("API client rate limits", () => {
         ),
     );
 
-    const error = await generalReview("resume").catch((caught: unknown) => caught);
+    const error = await runReview("resume", "default").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(RateLimitError);
     expect(error).toMatchObject({
       checkpoint: "resumeReview",

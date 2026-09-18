@@ -11,6 +11,7 @@ import type {
   ResumeStore,
   StoredEvalRun,
   StoredResume,
+  VisitorStore,
 } from "./types.ts";
 import { parseEvalKind } from "./types.ts";
 
@@ -156,11 +157,26 @@ function toEvalSummary(run: StoredEvalRun): EvalRunSummary {
   };
 }
 
+export class MemoryVisitorStore implements VisitorStore {
+  private readonly ids = new Set<string>();
+
+  async record(visitorId: string): Promise<{ uniqueVisitors: number; created: boolean }> {
+    const created = !this.ids.has(visitorId);
+    this.ids.add(visitorId);
+    return { uniqueVisitors: this.ids.size, created };
+  }
+
+  async count(): Promise<number> {
+    return this.ids.size;
+  }
+}
+
 export function createMemoryStores() {
   return {
     kind: "memory" as const,
     personas: new MemoryPersonaStore(),
     resumes: new MemoryResumeStore(),
     evals: new MemoryEvalStore(),
+    visitors: new MemoryVisitorStore(),
   };
 }

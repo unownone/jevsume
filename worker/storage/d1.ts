@@ -11,6 +11,7 @@ import type {
   ResumeStore,
   StoredEvalRun,
   StoredResume,
+  VisitorStore,
 } from "./types.ts";
 import { parseEvalKind } from "./types.ts";
 
@@ -352,6 +353,28 @@ export class D1EvalStore implements EvalStore {
   }
 }
 
+export class D1VisitorStore implements VisitorStore {
+  constructor(private readonly db: D1Database) {}
+
+  async record(visitorId: string): Promise<{ uniqueVisitors: number; created: boolean }> {
+    const inserted = await this.db
+      .prepare(`INSERT OR IGNORE INTO visitors (id, created_at) VALUES (?, ?)`)
+      .bind(visitorId, new Date().toISOString())
+      .run();
+    return {
+      uniqueVisitors: await this.count(),
+      created: (inserted.meta.changes ?? 0) > 0,
+    };
+  }
+
+  async count(): Promise<number> {
+    const row = await this.db
+      .prepare(`SELECT COUNT(*) AS count FROM visitors`)
+      .first<{ count: number }>();
+    return row?.count ?? 0;
+  }
+}
+
 function escapeLike(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
 }
@@ -362,5 +385,6 @@ export function createD1Stores(db: D1Database) {
     personas: new D1PersonaStore(db),
     resumes: new D1ResumeStore(db),
     evals: new D1EvalStore(db),
+    visitors: new D1VisitorStore(db),
   };
 }

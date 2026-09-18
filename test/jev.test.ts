@@ -19,7 +19,19 @@ const sampleSection: ResumeSection = {
   heading: "Experience",
   kind: "experience",
   text: "Built systems that processed 2M events/day",
-  fragments: [{ id: "s1-f1", text: "Built systems that processed 2M events/day", kind: "bullet" }],
+  start: 0,
+  end: 42,
+  line: 1,
+  fragments: [
+    {
+      id: "s1-f1",
+      text: "Built systems that processed 2M events/day",
+      kind: "bullet",
+      start: 0,
+      end: 42,
+      line: 1,
+    },
+  ],
 };
 
 describe("JEV prompt manager", () => {
@@ -142,6 +154,12 @@ describe("transformers", () => {
     expect(review.suggestions.some((item) => item.id === "metrics")).toBe(true);
     expect(review.findings.some((item) => item.id === "weakest")).toBe(true);
     expect(review.sections[0]?.kind).toBe("experience");
+    const weakest = review.findings.find((item) => item.id === "weakest");
+    expect(weakest?.span?.fragmentId).toBe("s1-f1");
+    expect(weakest?.suggestedRewrite).toBeTruthy();
+    expect(review.suggestions.find((item) => item.id === "metrics")?.span?.fragmentId).toBe(
+      "s1-f1",
+    );
   });
 
   it("keeps persona requirements above the noul threshold", () => {

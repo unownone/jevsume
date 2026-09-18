@@ -1,7 +1,7 @@
 -- Relational store for personas, resumes, and evaluation runs.
 -- JSON columns keep the full JEV request/response so we can score prompts later.
 
-CREATE TABLE resumes (
+CREATE TABLE IF NOT EXISTS resumes (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
   filename TEXT,
@@ -11,11 +11,11 @@ CREATE TABLE resumes (
   created_at TEXT NOT NULL
 ) STRICT;
 
-CREATE UNIQUE INDEX idx_resumes_content_hash ON resumes(content_hash);
-CREATE INDEX idx_resumes_created_at ON resumes(created_at);
-CREATE INDEX idx_resumes_source ON resumes(source);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_content_hash ON resumes(content_hash);
+CREATE INDEX IF NOT EXISTS idx_resumes_created_at ON resumes(created_at);
+CREATE INDEX IF NOT EXISTS idx_resumes_source ON resumes(source);
 
-CREATE TABLE personas (
+CREATE TABLE IF NOT EXISTS personas (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   tags_json TEXT NOT NULL,
@@ -24,19 +24,19 @@ CREATE TABLE personas (
   created_at TEXT NOT NULL
 ) STRICT;
 
-CREATE INDEX idx_personas_created_at ON personas(created_at);
-CREATE INDEX idx_personas_title ON personas(title);
+CREATE INDEX IF NOT EXISTS idx_personas_created_at ON personas(created_at);
+CREATE INDEX IF NOT EXISTS idx_personas_title ON personas(title);
 
-CREATE TABLE persona_tags (
+CREATE TABLE IF NOT EXISTS persona_tags (
   persona_id TEXT NOT NULL,
   tag TEXT NOT NULL,
   PRIMARY KEY (persona_id, tag),
   FOREIGN KEY (persona_id) REFERENCES personas(id)
 ) STRICT;
 
-CREATE INDEX idx_persona_tags_tag ON persona_tags(tag);
+CREATE INDEX IF NOT EXISTS idx_persona_tags_tag ON persona_tags(tag);
 
-CREATE TABLE eval_runs (
+CREATE TABLE IF NOT EXISTS eval_runs (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
   resume_id TEXT,
@@ -56,10 +56,10 @@ CREATE TABLE eval_runs (
   FOREIGN KEY (persona_id) REFERENCES personas(id)
 ) STRICT;
 
-CREATE INDEX idx_eval_runs_kind ON eval_runs(kind);
-CREATE INDEX idx_eval_runs_resume ON eval_runs(resume_id);
-CREATE INDEX idx_eval_runs_persona ON eval_runs(persona_id);
-CREATE INDEX idx_eval_runs_created ON eval_runs(created_at);
-CREATE INDEX idx_eval_runs_score ON eval_runs(jev_score);
-CREATE INDEX idx_eval_runs_provider ON eval_runs(provider);
-CREATE INDEX idx_eval_runs_prompt_hash ON eval_runs(prompt_hash);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_kind ON eval_runs(kind);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_resume ON eval_runs(resume_id);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_persona ON eval_runs(persona_id);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_created ON eval_runs(created_at);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_score ON eval_runs(jev_score);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_provider ON eval_runs(provider);
+CREATE INDEX IF NOT EXISTS idx_eval_runs_prompt_hash ON eval_runs(prompt_hash);

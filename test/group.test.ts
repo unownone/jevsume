@@ -31,6 +31,29 @@ TypeScript, Go, Kafka
     const grouped = groupResumeText("\n\n");
     expect(grouped.sections).toHaveLength(0);
   });
+
+  it("anchors fragments and sections to character offsets in the grouped text", () => {
+    const grouped = groupResumeText(`Jane Doe
+Summary
+Staff engineer who ships distributed systems.
+Experience
+- Built an event bus that cut p99 latency 40%
+Skills
+TypeScript, Go, Kafka`);
+    const summary = grouped.sections.find((section) => section.kind === "summary");
+    const experience = grouped.sections.find((section) => section.kind === "experience");
+    const bullet = experience?.fragments.find((fragment) => fragment.kind === "bullet");
+    expect(summary?.start).toBeGreaterThanOrEqual(0);
+    expect(summary?.end).toBeGreaterThan(summary?.start ?? 0);
+    expect(grouped.text.slice(summary!.start, summary!.end)).toContain(
+      "Staff engineer who ships distributed systems.",
+    );
+    expect(bullet?.start).toBeGreaterThanOrEqual(0);
+    expect(grouped.text.slice(bullet!.start, bullet!.end)).toContain(
+      "Built an event bus that cut p99 latency 40%",
+    );
+    expect(bullet?.line).toBeGreaterThan(0);
+  });
 });
 
 describe("extractRequirementCandidates", () => {
