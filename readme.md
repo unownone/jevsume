@@ -50,15 +50,22 @@ Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` beca
 
 `wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, and a D1 binding `DB` (`jevsume`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
 
-Lookup APIs (summaries on list, full prompt/input/output on get):
+Lookup APIs that used to dump stored resumes and eval runs are not public. The Worker still persists reviews internally; the UI talks to:
 
 | Method | Path | Use |
 | --- | --- | --- |
-| GET | `/api/resumes?q=&source=` | Find stored resumes |
-| GET | `/api/resumes/:id` | Full resume text |
-| GET | `/api/personas?q=&tag=` | Find personas |
-| GET | `/api/evals?kind=&resumeId=&personaId=&provider=&promptHash=&minScore=&maxScore=` | Find evaluation runs |
-| GET | `/api/evals/:id` | Full input, prompt, output, review |
+| GET | `/api/health` | Provider/storage heartbeat |
+| GET/POST | `/api/visitors` | Unique visitor count (HttpOnly cookie) |
+| GET | `/api/job-personas` | Default + stored job personas |
+| GET | `/api/job-personas/:id` | Persona detail |
+| POST | `/api/personas` | Create a job persona |
+| GET | `/api/personas` | Persona summaries |
+| GET | `/api/personas/:id` | Stored persona |
+| POST | `/api/resumes` | Store extracted resume text |
+| POST | `/api/reviews` | General or per-job review |
+| POST | `/api/reviews/job` | Per-job review |
+
+Rate limits (per Cloudflare location, by `CF-Connecting-IP`): 10 reviews/min, 5 persona creates/min, 20 resume uploads/min, 30 visitor pings/min. CORS is same-origin only.
 
 ## Secrets
 

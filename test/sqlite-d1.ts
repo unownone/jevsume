@@ -97,10 +97,22 @@ export function createSqliteD1(): D1Database {
   return new MemoryD1Database() as unknown as D1Database;
 }
 
+function unlimitedRateLimit(): RateLimit {
+  return {
+    async limit() {
+      return { success: true };
+    },
+  };
+}
+
 export function emptyD1Env(db: D1Database): CloudflareBindings {
   return {
     DB: db,
     TYPESAFE_MODEL: "jev-latest",
     TYPESAFE_BASE_URL: "https://api.typesafe.ai",
+    RATE_LIMIT_RESUME_REVIEW: unlimitedRateLimit(),
+    RATE_LIMIT_PERSONA_CREATION: unlimitedRateLimit(),
+    RATE_LIMIT_RESUME_STORE: unlimitedRateLimit(),
+    RATE_LIMIT_VISITOR: unlimitedRateLimit(),
   };
 }

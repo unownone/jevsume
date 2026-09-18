@@ -9,6 +9,16 @@ export const RATE_LIMIT_CHECKPOINTS = {
     windowMs: 60_000,
     label: "persona creations",
   },
+  resumeStore: {
+    limit: 20,
+    windowMs: 60_000,
+    label: "resume uploads",
+  },
+  visitorRecord: {
+    limit: 30,
+    windowMs: 60_000,
+    label: "visitor pings",
+  },
 } as const;
 
 export type RateLimitCheckpoint = keyof typeof RATE_LIMIT_CHECKPOINTS;
@@ -29,6 +39,10 @@ export function rateLimitTitle(checkpoint: RateLimitCheckpoint): string {
       return "Resume review limit";
     case "personaCreation":
       return "Persona creation limit";
+    case "resumeStore":
+      return "Resume upload limit";
+    case "visitorRecord":
+      return "Visitor limit";
     default: {
       const _exhaustive: never = checkpoint;
       return _exhaustive;

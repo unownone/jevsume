@@ -22,8 +22,67 @@ export type RateLimitDecision =
     };
 
 export type RateLimiter = {
-  consume(checkpoint: RateLimitCheckpoint, ip: string): RateLimitDecision;
+  consume(
+    checkpoint: RateLimitCheckpoint,
+    ip: string,
+  ): RateLimitDecision | Promise<RateLimitDecision>;
 };
+
+export const RATE_LIMIT_BINDING_NAMES = {
+  resumeReview: "RATE_LIMIT_RESUME_REVIEW",
+  personaCreation: "RATE_LIMIT_PERSONA_CREATION",
+  resumeStore: "RATE_LIMIT_RESUME_STORE",
+  visitorRecord: "RATE_LIMIT_VISITOR",
+} as const satisfies Record<RateLimitCheckpoint, keyof CloudflareBindings>;
+
+function isRateLimitBinding(value: unknown): value is RateLimit {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "limit" in value &&
+    typeof (value as RateLimit).limit === "function"
+  );
+}
+
+/**
+ * Prefer the Workers Rate Limiting binding (shared per Cloudflare location)
+ * so limits survive isolate recycling. Fall back to in-memory when unbound.
+ */
+export class EnvRateLimiter implements RateLimiter {
+  constructor(
+    private readonly env: object,
+    private readonly fallback: RateLimiter,
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  async consume(checkpoint: RateLimitCheckpoint, ip: string): Promise<RateLimitDecision> {
+    const binding = Reflect.get(this.env, RATE_LIMIT_BINDING_NAMES[checkpoint]);
+    if (!isRateLimitBinding(binding)) {
+      return this.fallback.consume(checkpoint, ip);
+    }
+    const config = RATE_LIMIT_CHECKPOINTS[checkpoint];
+    const { success } = await binding.limit({ key: ip });
+    const now = this.now();
+    const resetAt = new Date(now + config.windowMs).toISOString();
+    if (!success) {
+      return {
+        ok: false,
+        checkpoint,
+        limit: config.limit,
+        remaining: 0,
+        retryAfterSeconds: Math.max(1, Math.ceil(config.windowMs / 1000)),
+        resetAt,
+      };
+    }
+    return {
+      ok: true,
+      checkpoint,
+      limit: config.limit,
+      remaining: config.limit,
+      resetAt,
+    };
+  }
+}
 
 export class RateLimitedError extends Error {
   readonly status = 429 as const;

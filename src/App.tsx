@@ -22,7 +22,6 @@ import {
   type ReviewResponse,
 } from "./lib/api.ts";
 import { extractFromFile } from "./lib/extract.ts";
-import { loadVisitorId, persistVisitorId } from "./lib/visitor.ts";
 
 const DEMO_RESUME = `Jane Doe
 Staff Software Engineer
@@ -108,10 +107,8 @@ export default function App() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
-    const visitorId = loadVisitorId();
-    void recordVisitor(visitorId)
+    void recordVisitor()
       .then((result) => {
-        persistVisitorId(result.visitorId);
         setVisitors(result.uniqueVisitors);
       })
       .catch(() => undefined);
