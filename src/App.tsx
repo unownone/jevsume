@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 import { formatJevScore, scoreTone } from "../shared/format.ts";
 import {
+  formatRateLimitCopy,
+  rateLimitTitle,
+  secondsUntil,
+  type RateLimitCheckpoint,
+} from "../shared/rate-limit.ts";
+import {
+  RateLimitError,
   createPersona,
   fetchHealth,
   generalReview,
@@ -41,6 +48,43 @@ Unlimited PTO and a culture of snacks
 
 type Mode = "general" | "job";
 
+type RateLimitNotice = {
+  checkpoint: RateLimitCheckpoint;
+  resetAt: string;
+  limit: number;
+};
+
+type RateLimitNotices = Partial<Record<RateLimitCheckpoint, RateLimitNotice>>;
+
+function noticeWait(notice: RateLimitNotice | undefined, nowMs: number): number {
+  return notice ? secondsUntil(notice.resetAt, nowMs) : 0;
+}
+
+function pruneExpired(notices: RateLimitNotices, nowMs: number): RateLimitNotices {
+  const next: RateLimitNotices = {};
+  const resume = notices.resumeReview;
+  if (resume && secondsUntil(resume.resetAt, nowMs) > 0) {
+    next.resumeReview = resume;
+  }
+  const persona = notices.personaCreation;
+  if (persona && secondsUntil(persona.resetAt, nowMs) > 0) {
+    next.personaCreation = persona;
+  }
+  return next;
+}
+
+function activeNotices(notices: RateLimitNotices, nowMs: number): RateLimitNotice[] {
+  const pruned = pruneExpired(notices, nowMs);
+  const items: RateLimitNotice[] = [];
+  if (pruned.resumeReview) {
+    items.push(pruned.resumeReview);
+  }
+  if (pruned.personaCreation) {
+    items.push(pruned.personaCreation);
+  }
+  return items;
+}
+
 export default function App() {
   const [mode, setMode] = useState<Mode>("general");
   const [resumeText, setResumeText] = useState(DEMO_RESUME);
@@ -48,6 +92,8 @@ export default function App() {
   const [hot, setHot] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimits, setRateLimits] = useState<RateLimitNotices>({});
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [provider, setProvider] = useState("…");
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [personas, setPersonas] = useState<PersonaListItem[]>([]);
@@ -69,6 +115,44 @@ export default function App() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!rateLimits.resumeReview && !rateLimits.personaCreation) {
+      return;
+    }
+    setNowMs(Date.now());
+    const id = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [rateLimits]);
+
+  useEffect(() => {
+    setRateLimits((current) => {
+      const pruned = pruneExpired(current, nowMs);
+      if (pruned.resumeReview === current.resumeReview && pruned.personaCreation === current.personaCreation) {
+        return current;
+      }
+      return pruned;
+    });
+  }, [nowMs]);
+
+  const reviewWait = noticeWait(rateLimits.resumeReview, nowMs);
+  const personaWait = noticeWait(rateLimits.personaCreation, nowMs);
+  const reviewBlocked = reviewWait > 0;
+  const personaBlocked = personaWait > 0;
+  const notices = activeNotices(rateLimits, nowMs);
+
+  function rememberRateLimit(caught: RateLimitError): void {
+    setRateLimits((current) => ({
+      ...current,
+      [caught.checkpoint]: {
+        checkpoint: caught.checkpoint,
+        resetAt: caught.resetAt,
+        limit: caught.limit,
+      },
+    }));
+  }
 
   const tone = useMemo(
     () => (review ? scoreTone(review.jevScore.value) : "mid"),
@@ -110,7 +194,11 @@ export default function App() {
       const items = await listPersonas();
       setPersonas(items);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Persona create failed");
+      if (caught instanceof RateLimitError) {
+        rememberRateLimit(caught);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Persona create failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -128,7 +216,11 @@ export default function App() {
       setReview(result);
       setProvider(result.provider);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Review failed");
+      if (caught instanceof RateLimitError) {
+        rememberRateLimit(caught);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Review failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -232,8 +324,8 @@ export default function App() {
                 style={{ marginTop: 8, minHeight: 120 }}
               />
               <div className="row">
-                <button className="ghost" type="submit" disabled={busy}>
-                  Save persona
+                <button className="ghost" type="submit" disabled={busy || personaBlocked}>
+                  {personaBlocked ? `Persona limit · ${personaWait}s` : "Save persona"}
                 </button>
                 <select
                   value={personaId}
@@ -252,10 +344,32 @@ export default function App() {
           ) : null}
 
           <div className="row">
-            <button className="primary" type="button" disabled={busy} onClick={() => void onReview()}>
-              {busy ? "Scoring…" : mode === "job" ? "Run JevScore" : "Review resume"}
+            <button
+              className="primary"
+              type="button"
+              disabled={busy || reviewBlocked}
+              onClick={() => void onReview()}
+            >
+              {busy
+                ? "Scoring…"
+                : reviewBlocked
+                  ? `Review locked · ${reviewWait}s`
+                  : mode === "job"
+                    ? "Run JevScore"
+                    : "Review resume"}
             </button>
           </div>
+          {notices.map((notice) => (
+            <div className="rate-limit" role="status" aria-live="polite" key={notice.checkpoint}>
+              <strong>{rateLimitTitle(notice.checkpoint)}</strong>
+              {formatRateLimitCopy({
+                checkpoint: notice.checkpoint,
+                limit: notice.limit,
+                resetAt: notice.resetAt,
+                nowMs,
+              })}
+            </div>
+          ))}
           {error ? <div className="error">{error}</div> : null}
         </section>
 
