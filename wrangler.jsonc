@@ -11,7 +11,7 @@
   "observability": {
     "enabled": true,
     "logs": {
-      "head_sampling_rate": 1
+      "head_sampling_rate": 0.1
     },
     "traces": {
       "enabled": true,
@@ -27,6 +27,28 @@
       "binding": "DB",
       "database_name": "jevsume",
       "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMIT_RESUME_REVIEW",
+      "namespace_id": "871001",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_PERSONA_CREATION",
+      "namespace_id": "871002",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_RESUME_STORE",
+      "namespace_id": "871003",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "RATE_LIMIT_VISITOR",
+      "namespace_id": "871004",
+      "simple": { "limit": 30, "period": 60 }
     }
   ]
 }

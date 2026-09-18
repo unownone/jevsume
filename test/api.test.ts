@@ -94,22 +94,7 @@ describe("Hono API", () => {
     expect(body.id).toMatch(/[0-9a-f-]{36}/i);
     expect(body.jevScore.value).toBeGreaterThanOrEqual(0);
     expect(body.jevScore.value).toBeLessThanOrEqual(100);
-
-    const evalRes = await app.request(`/api/evals/${body.id}`);
-    expect(evalRes.status).toBe(200);
-    const evalRun = (await evalRes.json()) as {
-      kind: string;
-      prompt: Record<string, { type: string }>;
-      input: { resume?: { text: string }; persona?: { title: string } };
-      output: { answers: Record<string, unknown> };
-      review: { jevScore: { value: number } };
-    };
-    expect(evalRun.kind).toBe("job_review");
-    expect(evalRun.input.persona?.title).toBe("Staff Backend Engineer");
-    expect(evalRun.input.resume?.text).toContain("Kafka");
-    expect(evalRun.prompt.fit_overall?.type).toBe("score");
-    expect(Object.keys(evalRun.output.answers).length).toBeGreaterThan(0);
-    expect(evalRun.review.jevScore.value).toBe(body.jevScore.value);
+    expect((await app.request(`/api/evals/${body.id}`)).status).toBe(404);
   });
 
   it("returns 404 for an unknown persona", async () => {
@@ -157,16 +142,11 @@ describe("Hono API", () => {
     expect(body.mode).toBe("general");
     expect(body.resumeId).toBe(resume.id);
     expect(body.dimensions.some((item) => item.id === "wording")).toBe(true);
-
-    const lookedUp = await app.request(`/api/resumes/${resume.id}`);
-    expect(lookedUp.status).toBe(200);
-
-    const search = await app.request("/api/resumes?q=Kafka");
-    const searchBody = (await search.json()) as { items: { id: string }[] };
-    expect(searchBody.items.some((item) => item.id === resume.id)).toBe(true);
+    expect((await app.request(`/api/resumes/${resume.id}`)).status).toBe(404);
+    expect((await app.request("/api/resumes?q=Kafka")).status).toBe(404);
   });
 
-  it("keeps resume, prompt, input, and output on eval runs for later scoring", async () => {
+  it("dedupes stored resumes across reviews without exposing eval dumps", async () => {
     const app = testApp();
     const first = await app.request("/api/reviews", {
       method: "POST",
@@ -182,38 +162,13 @@ describe("Hono API", () => {
     const b = (await second.json()) as { id: string; resumeId: string };
     expect(a.resumeId).toBe(b.resumeId);
     expect(a.id).not.toBe(b.id);
-
-    const listed = await app.request(`/api/evals?kind=general_review&resumeId=${a.resumeId}`);
-    const listBody = (await listed.json()) as {
-      items: {
-        id: string;
-        kind: string;
-        promptHash: string;
-        jevScore: number;
-        prompt?: unknown;
-      }[];
-    };
-    expect(listBody.items).toHaveLength(2);
-    expect(listBody.items[0]?.prompt).toBeUndefined();
-    expect(listBody.items[0]?.promptHash).toBe(listBody.items[1]?.promptHash);
-
-    const full = await app.request(`/api/evals/${a.id}`);
-    const run = (await full.json()) as {
-      kind: string;
-      prompt: Record<string, { type: string; instructions: string }>;
-      input: { resume: { text: string } };
-      output: { answers: Record<string, { type: string }> };
-      review: { mode: string };
-    };
-    expect(run.kind).toBe("general_review");
-    expect(run.prompt.wording?.type).toBe("score");
-    expect(run.prompt.wording?.instructions.length).toBeGreaterThan(10);
-    expect(run.input.resume.text).toContain("Staff engineer");
-    expect(run.output.answers.wording?.type).toBe("score");
-    expect(run.review.mode).toBe("general");
+    expect((await app.request(`/api/evals?kind=general_review&resumeId=${a.resumeId}`)).status).toBe(
+      404,
+    );
+    expect((await app.request(`/api/evals/${a.id}`)).status).toBe(404);
   });
 
-  it("records persona-build evals with the compiled questions", async () => {
+  it("does not expose persona-build eval payloads", async () => {
     const app = testApp();
     const created = await app.request("/api/personas", {
       method: "POST",
@@ -224,28 +179,17 @@ describe("Hono API", () => {
         jobDescription: "- 5+ years building event-driven services in Go\n- Production Kafka experience",
       }),
     });
+    expect(created.status).toBe(201);
     const persona = (await created.json()) as { id: string };
-    const listed = await app.request(`/api/evals?kind=persona_build&personaId=${persona.id}`);
-    const listBody = (await listed.json()) as { items: { id: string }[] };
-    expect(listBody.items).toHaveLength(1);
-
-    const full = await app.request(`/api/evals/${listBody.items[0]?.id}`);
-    const run = (await full.json()) as {
-      prompt: Record<string, { type: string }>;
-      input: { candidates: unknown[] };
-      output: { answers: Record<string, unknown> };
-      review: null;
-    };
-    expect(run.review).toBeNull();
-    expect(run.input.candidates.length).toBeGreaterThan(0);
-    expect(Object.keys(run.prompt).some((key) => key.startsWith("req_"))).toBe(true);
-    expect(Object.keys(run.output.answers).length).toBeGreaterThan(0);
+    expect((await app.request(`/api/evals?kind=persona_build&personaId=${persona.id}`)).status).toBe(
+      404,
+    );
   });
 
-  it("rejects an unknown eval kind filter", async () => {
+  it("does not expose eval list filters", async () => {
     const app = testApp();
     const res = await app.request("/api/evals?kind=nope");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
   it("lists the default job persona and any stored job personas", async () => {
@@ -316,30 +260,21 @@ describe("Hono API", () => {
     );
   });
 
-  it("counts unique visitors once per visitor id", async () => {
+  it("counts unique visitors once per cookie", async () => {
     const app = testApp();
-    const first = await app.request("/api/visitors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitorId: "visitor-one" }),
-    });
+    const first = await app.request("/api/visitors", { method: "POST" });
     expect(first.status).toBe(200);
     const firstBody = (await first.json()) as { uniqueVisitors: number; visitorId: string };
-    expect(firstBody.visitorId).toBe("visitor-one");
+    expect(firstBody.visitorId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(firstBody.uniqueVisitors).toBe(1);
 
     const again = await app.request("/api/visitors", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitorId: "visitor-one" }),
+      headers: { Cookie: `jevsume_vid=${firstBody.visitorId}` },
     });
     expect((await again.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
 
-    const second = await app.request("/api/visitors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitorId: "visitor-two" }),
-    });
+    const second = await app.request("/api/visitors", { method: "POST" });
     const secondBody = (await second.json()) as { uniqueVisitors: number };
     expect(secondBody.uniqueVisitors).toBe(2);
 
@@ -365,7 +300,7 @@ describe("Hono API", () => {
     });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({
-      error: "TypeSafe SystemOne failed (422): bad questions",
+      error: "Review service failed",
     });
   });
 
@@ -386,14 +321,12 @@ describe("Hono API", () => {
       "/api/visitors",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorId: "first-run-visitor" }),
       },
       env,
     );
     expect(recorded.status).toBe(200);
     const body = (await recorded.json()) as { uniqueVisitors: number; visitorId: string };
-    expect(body.visitorId).toBe("first-run-visitor");
+    expect(body.visitorId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(body.uniqueVisitors).toBe(1);
 
     const review = await app.request(
@@ -561,12 +494,5 @@ describe("Hono API", () => {
       },
     });
     expect(clientIp(request)).toBe("203.0.113.9");
-  });
-
-  it("falls back to the first X-Forwarded-For hop", () => {
-    const request = new Request("https://example.test/api/reviews", {
-      headers: { "X-Forwarded-For": "198.51.100.1, 10.0.0.1" },
-    });
-    expect(clientIp(request)).toBe("198.51.100.1");
   });
 });

@@ -9,13 +9,13 @@ import {
   type RateLimitCheckpoint,
   type RateLimitErrorBody,
 } from "../shared/rate-limit.ts";
+import { allowCorsOrigin } from "./cors.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
-import { MemoryRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
+import { MemoryRateLimiter, EnvRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
 import { createD1Stores } from "./storage/d1.ts";
 import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
 import { ensureD1Schema } from "./storage/schema.ts";
-import type { EvalListFilter, ReviewStores, VisitorStore } from "./storage/types.ts";
-import { isEvalKind } from "./storage/types.ts";
+import type { ReviewStores, VisitorStore } from "./storage/types.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
@@ -153,17 +153,28 @@ function assertResumeSize(text: string, label: string): void {
 }
 
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-real-ip") ??
-    forwarded ??
-    "unknown"
-  );
+  return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
 }
 
-function assertRateLimit(c: Context<AppEnv>, checkpoint: RateLimitCheckpoint): void {
-  const decision = c.get("rateLimiter").consume(checkpoint, clientIp(c.req.raw));
+function visitorCookie(visitorId: string, requestUrl: string): string {
+  const secure = new URL(requestUrl).protocol === "https:";
+  const parts = [
+    `jevsume_vid=${visitorId}`,
+    "Path=/",
+    "Max-Age=31536000",
+    "SameSite=Lax",
+    "HttpOnly",
+  ];
+  if (secure) {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
+}
+
+async function assertRateLimit(c: Context<AppEnv>, checkpoint: RateLimitCheckpoint): Promise<void> {
+  const decision = await Promise.resolve(
+    c.get("rateLimiter").consume(checkpoint, clientIp(c.req.raw)),
+  );
   if (!decision.ok) {
     throw new RateLimitedError(decision);
   }
@@ -184,8 +195,16 @@ function rateLimitBody(err: RateLimitedError): RateLimitErrorBody {
 
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
-  const rateLimiter = options.rateLimiter ?? new MemoryRateLimiter();
-  app.use("/api/*", cors());
+  const fallbackLimiter = options.rateLimiter ?? new MemoryRateLimiter();
+  app.use(
+    "/api/*",
+    cors({
+      origin: (origin, c) => allowCorsOrigin(origin, c.req.url),
+      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowHeaders: ["Content-Type"],
+      maxAge: 86400,
+    }),
+  );
   let memoryVisitors: MemoryVisitorStore | undefined;
 
   app.use("/api/*", async (c, next) => {
@@ -202,7 +221,10 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       c.set("engine", runtime.engine);
       c.set("visitors", options.visitors ?? runtime.visitors);
     }
-    c.set("rateLimiter", rateLimiter);
+    c.set(
+      "rateLimiter",
+      options.rateLimiter ?? new EnvRateLimiter(c.env ?? {}, fallbackLimiter),
+    );
     await next();
   });
 
@@ -220,7 +242,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       return c.json({ error: err.message }, err.status);
     }
     if (isTypeSafeHttpError(err)) {
-      return c.json({ error: err.message }, 502);
+      return c.json({ error: "Review service failed" }, 502);
     }
     const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.error(message, err instanceof Error ? err.stack : err);
@@ -242,15 +264,12 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/visitors", async (c) => {
-    const body: unknown = await c.req.json().catch(() => null);
-    const fromBody = isRecord(body) ? readString(body.visitorId)?.trim() : undefined;
+    await assertRateLimit(c, "visitorRecord");
     const fromCookie = readCookie(c.req.header("Cookie"), "jevsume_vid");
     const visitorId =
-      (fromBody && isVisitorId(fromBody) ? fromBody : undefined) ??
-      (fromCookie && isVisitorId(fromCookie) ? fromCookie : undefined) ??
-      crypto.randomUUID();
+      fromCookie && isVisitorId(fromCookie) ? fromCookie : crypto.randomUUID();
     const recorded = await c.get("visitors").record(visitorId);
-    c.header("Set-Cookie", `jevsume_vid=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax`);
+    c.header("Set-Cookie", visitorCookie(visitorId, c.req.url));
     return c.json({ uniqueVisitors: recorded.uniqueVisitors, visitorId });
   });
 
@@ -268,7 +287,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/personas", async (c) => {
-    assertRateLimit(c, "personaCreation");
+    await assertRateLimit(c, "personaCreation");
     const body = await jsonObject(c);
     const title = requiredString(body, "title");
     const jobDescription = requiredString(body, "jobDescription");
@@ -307,6 +326,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/resumes", async (c) => {
+    await assertRateLimit(c, "resumeStore");
     const body = await jsonObject(c);
     const text = requiredString(body, "text");
     assertResumeSize(text, "resume text");
@@ -318,34 +338,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json(stored, 201);
   });
 
-  app.get("/api/resumes", async (c) => {
-    const items = await c.get("engine").listResumes({
-      q: queryString(c.req.query("q")),
-      source: queryString(c.req.query("source")),
-      limit: queryLimit(c.req.query("limit")),
-    });
-    return c.json({
-      items: items.map((resume) => ({
-        id: resume.id,
-        filename: resume.filename,
-        source: resume.source,
-        contentHash: resume.contentHash,
-        charCount: resume.charCount,
-        createdAt: resume.createdAt,
-      })),
-    });
-  });
-
-  app.get("/api/resumes/:id", async (c) => {
-    const resume = await c.get("engine").getResume(c.req.param("id"));
-    if (!resume) {
-      throw new HTTPException(404, { message: "Resume not found" });
-    }
-    return c.json(resume);
-  });
-
   app.post("/api/reviews", async (c) => {
-    assertRateLimit(c, "resumeReview");
+    await assertRateLimit(c, "resumeReview");
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
@@ -361,7 +355,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/reviews/job", async (c) => {
-    assertRateLimit(c, "resumeReview");
+    await assertRateLimit(c, "resumeReview");
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     const personaId = requiredString(body, "personaId");
@@ -374,39 +368,6 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       throw new HTTPException(404, { message: "Persona not found" });
     }
     return c.json(review);
-  });
-
-  app.get("/api/evals", async (c) => {
-    const kindParam = queryString(c.req.query("kind"));
-    if (kindParam !== undefined && !isEvalKind(kindParam)) {
-      throw new HTTPException(400, {
-        message: "kind must be general_review, job_review, or persona_build",
-      });
-    }
-    const providerParam = queryString(c.req.query("provider"));
-    if (providerParam !== undefined && providerParam !== "jev" && providerParam !== "mock") {
-      throw new HTTPException(400, { message: "provider must be jev or mock" });
-    }
-    const filter: EvalListFilter = {
-      kind: kindParam,
-      resumeId: queryString(c.req.query("resumeId")),
-      personaId: queryString(c.req.query("personaId")),
-      provider: providerParam,
-      promptHash: queryString(c.req.query("promptHash")),
-      minScore: queryNumber(c.req.query("minScore")),
-      maxScore: queryNumber(c.req.query("maxScore")),
-      limit: queryLimit(c.req.query("limit")),
-    };
-    const items = await c.get("engine").listEvals(filter);
-    return c.json({ items });
-  });
-
-  app.get("/api/evals/:id", async (c) => {
-    const run = await c.get("engine").getEval(c.req.param("id"));
-    if (!run) {
-      throw new HTTPException(404, { message: "Eval run not found" });
-    }
-    return c.json(run);
   });
 
   return app;
