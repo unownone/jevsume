@@ -220,9 +220,10 @@ textarea {
   font-weight: 650;
 }
 
-.primary:disabled {
+.primary:disabled,
+.ghost:disabled {
   opacity: 0.5;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 .ghost {
@@ -336,6 +337,23 @@ textarea {
 .muted {
   color: var(--muted);
   margin: 0;
+}
+
+.rate-limit {
+  color: var(--gold);
+  margin-top: 10px;
+  border: 1px solid rgba(232, 197, 114, 0.35);
+  background: rgba(232, 197, 114, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.rate-limit strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
 }
 
 .orb-wrap {

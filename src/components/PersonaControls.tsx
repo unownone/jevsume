@@ -16,6 +16,8 @@ type PersonaControlsProps = {
   onJobDescription: (value: string) => void;
   onCreate: (event: FormEvent) => void;
   busy: boolean;
+  personaBlocked: boolean;
+  personaWait: number;
 };
 
 export function PersonaControls({
@@ -32,6 +34,8 @@ export function PersonaControls({
   onJobDescription,
   onCreate,
   busy,
+  personaBlocked,
+  personaWait,
 }: PersonaControlsProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -113,8 +117,8 @@ export function PersonaControls({
             aria-label="Job description"
             placeholder="Paste the job description"
           />
-          <button className="ghost" type="submit" disabled={busy}>
-            Save persona
+          <button className="ghost" type="submit" disabled={busy || personaBlocked}>
+            {personaBlocked ? `Persona limit · ${personaWait}s` : "Save persona"}
           </button>
         </form>
       ) : null}

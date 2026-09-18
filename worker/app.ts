@@ -4,7 +4,13 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { TypeSafeHttpError } from "../packages/jev/http.ts";
 import { DEFAULT_PERSONA_ID } from "../packages/jev/index.ts";
+import {
+  RATE_LIMIT_CHECKPOINTS,
+  type RateLimitCheckpoint,
+  type RateLimitErrorBody,
+} from "../shared/rate-limit.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
+import { MemoryRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
 import { createD1Stores } from "./storage/d1.ts";
 import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
 import { ensureD1Schema } from "./storage/schema.ts";
@@ -16,12 +22,14 @@ export type AppEnv = {
   Variables: {
     engine: ReviewEngine;
     visitors: VisitorStore;
+    rateLimiter: RateLimiter;
   };
 };
 
 export type CreateAppOptions = {
   engine?: ReviewEngine;
   visitors?: VisitorStore;
+  rateLimiter?: RateLimiter;
 };
 
 type EnvRuntime = {
@@ -144,8 +152,39 @@ function assertResumeSize(text: string, label: string): void {
   }
 }
 
+export function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return (
+    request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-real-ip") ??
+    forwarded ??
+    "unknown"
+  );
+}
+
+function assertRateLimit(c: Context<AppEnv>, checkpoint: RateLimitCheckpoint): void {
+  const decision = c.get("rateLimiter").consume(checkpoint, clientIp(c.req.raw));
+  if (!decision.ok) {
+    throw new RateLimitedError(decision);
+  }
+}
+
+function rateLimitBody(err: RateLimitedError): RateLimitErrorBody {
+  const config = RATE_LIMIT_CHECKPOINTS[err.decision.checkpoint];
+  return {
+    error: err.message,
+    code: "rate_limited",
+    checkpoint: err.decision.checkpoint,
+    limit: err.decision.limit,
+    windowSeconds: config.windowMs / 1000,
+    retryAfterSeconds: err.decision.retryAfterSeconds,
+    resetAt: err.decision.resetAt,
+  };
+}
+
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+  const rateLimiter = options.rateLimiter ?? new MemoryRateLimiter();
   app.use("/api/*", cors());
   let memoryVisitors: MemoryVisitorStore | undefined;
 
@@ -163,10 +202,20 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       c.set("engine", runtime.engine);
       c.set("visitors", options.visitors ?? runtime.visitors);
     }
+    c.set("rateLimiter", rateLimiter);
     await next();
   });
 
   app.onError((err, c) => {
+    if (err instanceof RateLimitedError) {
+      const body = rateLimitBody(err);
+      return c.json(body, 429, {
+        "Retry-After": String(body.retryAfterSeconds),
+        "X-RateLimit-Limit": String(body.limit),
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": String(Math.ceil(Date.parse(body.resetAt) / 1000)),
+      });
+    }
     if (err instanceof HTTPException) {
       return c.json({ error: err.message }, err.status);
     }
@@ -219,6 +268,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/personas", async (c) => {
+    assertRateLimit(c, "personaCreation");
     const body = await jsonObject(c);
     const title = requiredString(body, "title");
     const jobDescription = requiredString(body, "jobDescription");
@@ -295,6 +345,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/reviews", async (c) => {
+    assertRateLimit(c, "resumeReview");
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
@@ -310,6 +361,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.post("/api/reviews/job", async (c) => {
+    assertRateLimit(c, "resumeReview");
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
     const personaId = requiredString(body, "personaId");

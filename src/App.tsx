@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 import { formatJevScore, scoreTone } from "../shared/format.ts";
+import {
+  formatRateLimitCopy,
+  rateLimitTitle,
+  secondsUntil,
+  type RateLimitCheckpoint,
+} from "../shared/rate-limit.ts";
 import { FindingsPanel } from "./components/FindingsPanel.tsx";
 import { PersonaControls } from "./components/PersonaControls.tsx";
 import { ResumeCanvas } from "./components/ResumeCanvas.tsx";
 import { ReviewMeta } from "./components/ReviewMeta.tsx";
 import {
+  RateLimitError,
   createPersona,
   listJobPersonas,
   recordVisitor,
@@ -43,12 +50,51 @@ const DEMO_JD = `Staff Backend Engineer
 Unlimited PTO and a culture of snacks
 `;
 
+type RateLimitNotice = {
+  checkpoint: RateLimitCheckpoint;
+  resetAt: string;
+  limit: number;
+};
+
+type RateLimitNotices = Partial<Record<RateLimitCheckpoint, RateLimitNotice>>;
+
+function noticeWait(notice: RateLimitNotice | undefined, nowMs: number): number {
+  return notice ? secondsUntil(notice.resetAt, nowMs) : 0;
+}
+
+function pruneExpired(notices: RateLimitNotices, nowMs: number): RateLimitNotices {
+  const next: RateLimitNotices = {};
+  const resume = notices.resumeReview;
+  if (resume && secondsUntil(resume.resetAt, nowMs) > 0) {
+    next.resumeReview = resume;
+  }
+  const persona = notices.personaCreation;
+  if (persona && secondsUntil(persona.resetAt, nowMs) > 0) {
+    next.personaCreation = persona;
+  }
+  return next;
+}
+
+function activeNotices(notices: RateLimitNotices, nowMs: number): RateLimitNotice[] {
+  const pruned = pruneExpired(notices, nowMs);
+  const items: RateLimitNotice[] = [];
+  if (pruned.resumeReview) {
+    items.push(pruned.resumeReview);
+  }
+  if (pruned.personaCreation) {
+    items.push(pruned.personaCreation);
+  }
+  return items;
+}
+
 export default function App() {
   const [resumeText, setResumeText] = useState(DEMO_RESUME);
   const [source, setSource] = useState("paste");
   const [hot, setHot] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimits, setRateLimits] = useState<RateLimitNotices>({});
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [clientMs, setClientMs] = useState(0);
   const [personas, setPersonas] = useState<JobPersonaItem[]>([]);
@@ -76,6 +122,44 @@ export default function App() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!rateLimits.resumeReview && !rateLimits.personaCreation) {
+      return;
+    }
+    setNowMs(Date.now());
+    const id = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [rateLimits]);
+
+  useEffect(() => {
+    setRateLimits((current) => {
+      const pruned = pruneExpired(current, nowMs);
+      if (pruned.resumeReview === current.resumeReview && pruned.personaCreation === current.personaCreation) {
+        return current;
+      }
+      return pruned;
+    });
+  }, [nowMs]);
+
+  const reviewWait = noticeWait(rateLimits.resumeReview, nowMs);
+  const personaWait = noticeWait(rateLimits.personaCreation, nowMs);
+  const reviewBlocked = reviewWait > 0;
+  const personaBlocked = personaWait > 0;
+  const notices = activeNotices(rateLimits, nowMs);
+
+  function rememberRateLimit(caught: RateLimitError): void {
+    setRateLimits((current) => ({
+      ...current,
+      [caught.checkpoint]: {
+        checkpoint: caught.checkpoint,
+        resetAt: caught.resetAt,
+        limit: caught.limit,
+      },
+    }));
+  }
 
   const tone = useMemo(
     () => (review ? scoreTone(review.jevScore.value) : "mid"),
@@ -122,7 +206,11 @@ export default function App() {
       setAdding(false);
       await refreshPersonas(persona.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save that job");
+      if (caught instanceof RateLimitError) {
+        rememberRateLimit(caught);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Could not save that job");
+      }
     } finally {
       setBusy(false);
     }
@@ -139,7 +227,11 @@ export default function App() {
       setClientMs(performance.now() - started);
       setActiveId(result.findings[0]?.id ?? null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Review failed");
+      if (caught instanceof RateLimitError) {
+        rememberRateLimit(caught);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Review failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -236,12 +328,30 @@ export default function App() {
             onJobDescription={setJobDescription}
             onCreate={(event) => void onCreatePersona(event)}
             busy={busy}
+            personaBlocked={personaBlocked}
+            personaWait={personaWait}
           />
           <div className="row">
-            <button className="primary" type="button" disabled={busy} onClick={() => void onReview()}>
-              {busy ? "Reading…" : "Review with Jev"}
+            <button
+              className="primary"
+              type="button"
+              disabled={busy || reviewBlocked}
+              onClick={() => void onReview()}
+            >
+              {busy ? "Reading…" : reviewBlocked ? `Review locked · ${reviewWait}s` : "Review with Jev"}
             </button>
           </div>
+          {notices.map((notice) => (
+            <div className="rate-limit" role="status" aria-live="polite" key={notice.checkpoint}>
+              <strong>{rateLimitTitle(notice.checkpoint)}</strong>
+              {formatRateLimitCopy({
+                checkpoint: notice.checkpoint,
+                limit: notice.limit,
+                resetAt: notice.resetAt,
+                nowMs,
+              })}
+            </div>
+          ))}
           {error ? <div className="error">{error}</div> : null}
         </section>
 
