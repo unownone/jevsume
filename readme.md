@@ -54,7 +54,7 @@ Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` beca
 
 Website events are fire-and-forget `writeDataPoint()` calls. Each point is `blobs: [event_type, page, country]`, `doubles: [1]`, `indexes: [event_id]`. The Worker records a `pageview` for every `/api/*` request and accepts client events at `POST /api/events` (`pageview` on load, `click` on review / upload / demo / persona). Query with the Analytics Engine SQL API against `website_events`.
 
-Git deploys auto-provision the KV namespace for `VISITORS` because `id` is omitted, the same way D1 is provisioned. The unique count is a single KV key (`count`) plus per-visitor keys (`vid:<id>`). `GET /api/visitors` is cacheable (`Cache-Control` + `CDN-Cache-Control`); `POST /api/visitors` is `no-store` so uniqueness writes are not cached.
+`VISITORS` is bound to the existing `jevsume-visitors` KV namespace (id in `wrangler.jsonc`). Omitting `id` makes Workers Builds try to create a second namespace with that title and fail. The unique count is a single KV key (`count`) plus per-visitor keys (`vid:<id>`). `GET /api/visitors` is cacheable (`Cache-Control` + `CDN-Cache-Control`); `POST /api/visitors` is `no-store` so uniqueness writes are not cached.
 
 Lookup APIs (summaries on list, full prompt/input/output on get):
 
