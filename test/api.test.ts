@@ -308,6 +308,9 @@ describe("Hono API", () => {
     };
     expect(emptyBody.defaultId).toBe("default");
     expect(emptyBody.items.some((item) => item.isDefault && item.id === "default")).toBe(true);
+    expect(emptyBody.items.some((item) => item.id === "preset:swe-staff")).toBe(true);
+    expect(emptyBody.items.some((item) => item.id === "preset:pm-mid")).toBe(true);
+    expect(emptyBody.items.some((item) => item.id === "preset:sre-senior")).toBe(true);
     expect(emptyBody.items[0]?.explanation.length).toBeGreaterThan(20);
 
     const created = await app.request("/api/personas", {
@@ -326,6 +329,31 @@ describe("Hono API", () => {
 
     const fetched = await app.request(`/api/job-personas/${persona.id}`);
     expect(fetched.status).toBe(200);
+
+    const preset = await app.request("/api/job-personas/preset:swe-staff");
+    expect(preset.status).toBe(200);
+    const presetBody = (await preset.json()) as { id: string; title: string; isPreset?: boolean; jobDescription?: string };
+    expect(presetBody.title).toBe("Staff Backend Engineer");
+    expect(presetBody.isPreset).toBe(true);
+    expect(presetBody.jobDescription).toContain("Kafka");
+  });
+
+  it("reviews a resume against a built-in role preset", async () => {
+    const app = testApp();
+    const review = await app.request("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeText: SAMPLE_RESUME, personaId: "preset:swe-staff" }),
+    });
+    expect(review.status).toBe(200);
+    const body = (await review.json()) as {
+      mode: string;
+      persona: { id: string; title: string; isDefault: boolean };
+      jobTarget?: { jobTitle?: string };
+    };
+    expect(body.mode).toBe("job");
+    expect(body.persona.title).toBe("Staff Backend Engineer");
+    expect(body.jobTarget?.jobTitle).toBe("Staff Backend Engineer");
   });
 
   it("reviews against the default persona without a job-specific posting", async () => {
@@ -591,6 +619,7 @@ describe("Hono API", () => {
     };
     expect(catalog.defaultId).toBe("default");
     expect(catalog.items.some((item) => item.isDefault && item.id === "default")).toBe(true);
+    expect(catalog.items.some((item) => item.id === "preset:pm-mid")).toBe(true);
 
     const recorded = await app.request(
       "/api/visitors",

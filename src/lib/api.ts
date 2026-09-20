@@ -115,6 +115,9 @@ export type JobPersonaItem = {
   requirementCount: number;
   createdAt: string;
   jobDescription?: string;
+  track?: string;
+  level?: string;
+  isPreset?: boolean;
 };
 
 export type JobPersonaCatalog = {

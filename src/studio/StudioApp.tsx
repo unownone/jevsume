@@ -8,9 +8,16 @@ import {
   jobTargetLabel,
   type JobTargetFields,
 } from "../../shared/job-target.ts";
+import {
+  DEFAULT_PRESET,
+  DEFAULT_PRESET_ID,
+  jobFieldsFromPreset,
+  presetById,
+} from "../../shared/resume-presets.ts";
 import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
 import { linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
+import { pdfBufferFromResumeText } from "./resume-pdf.ts";
 import { DropGate } from "./DropGate.tsx";
 import { JobComposer } from "./JobComposer.tsx";
 import { Leader } from "./Leader.tsx";
@@ -47,6 +54,7 @@ export default function StudioApp() {
   const [error, setError] = useState<string | null>(null);
   const [jobOpen, setJobOpen] = useState(false);
   const [jobTarget, setJobTarget] = useState<JobTargetFields>(EMPTY_JOB_TARGET);
+  const [demoPresetId, setDemoPresetId] = useState(DEFAULT_PRESET_ID);
   const [compact, setCompact] = useState(false);
   const [fromRect, setFromRect] = useState<DOMRect | null>(null);
   const [toRect, setToRect] = useState<DOMRect | null>(null);
@@ -149,13 +157,11 @@ export default function StudioApp() {
   }, []);
 
   const loadDemo = useCallback(
-    async (next: Scene = "loaded") => {
-      const response = await fetch("/demo-resume.pdf");
-      if (!response.ok) {
-        setError("Demo PDF is missing");
-        return;
-      }
-      await loadBuffer(await response.arrayBuffer(), "demo-resume.pdf", next);
+    async (next: Scene = "loaded", presetId = DEFAULT_PRESET_ID) => {
+      const preset = presetById(presetId) ?? DEFAULT_PRESET;
+      await loadBuffer(pdfBufferFromResumeText(preset.resumeText), `${preset.id}.pdf`, next);
+      setJobTarget(jobFieldsFromPreset(preset));
+      setDemoPresetId(preset.id);
     },
     [loadBuffer],
   );
@@ -542,7 +548,15 @@ export default function StudioApp() {
             hot={hot}
             onHot={setHot}
             onFiles={(files) => void onFiles(files)}
-            onDemo={() => void loadDemo()}
+            demoPresetId={demoPresetId}
+            onDemoPresetId={(id) => {
+              setDemoPresetId(id);
+              const preset = presetById(id);
+              if (preset) {
+                setJobTarget(jobFieldsFromPreset(preset));
+              }
+            }}
+            onDemo={(id) => void loadDemo("loaded", id)}
             jobSlot={
               <JobComposer value={jobTarget} onChange={setJobTarget} variant="plate" />
             }

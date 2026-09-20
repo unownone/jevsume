@@ -2,6 +2,33 @@ import { useEffect, useId, useRef } from "react";
 import type { FormEvent } from "react";
 import type { JobPersonaItem } from "../lib/api.ts";
 
+function personaLabel(persona: JobPersonaItem): string {
+  return persona.isDefault ? `${persona.title} (default)` : persona.title;
+}
+
+function groupedPersonas(personas: JobPersonaItem[]): {
+  defaults: JobPersonaItem[];
+  tracks: { label: string; items: JobPersonaItem[] }[];
+  custom: JobPersonaItem[];
+} {
+  const defaults = personas.filter((persona) => persona.isDefault);
+  const presets = personas.filter((persona) => persona.isPreset);
+  const custom = personas.filter((persona) => !persona.isDefault && !persona.isPreset);
+  const tracks: { label: string; items: JobPersonaItem[] }[] = [];
+  const index = new Map<string, JobPersonaItem[]>();
+  for (const persona of presets) {
+    const label = persona.track ?? "Roles";
+    let items = index.get(label);
+    if (!items) {
+      items = [];
+      index.set(label, items);
+      tracks.push({ label, items });
+    }
+    items.push(persona);
+  }
+  return { defaults, tracks, custom };
+}
+
 type PersonaControlsProps = {
   personas: JobPersonaItem[];
   personaId: string;
@@ -40,6 +67,7 @@ export function PersonaControls({
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const selected = personas.find((item) => item.id === personaId) ?? personas[0];
+  const groups = groupedPersonas(personas);
 
   useEffect(() => {
     const node = dialog.current;
@@ -66,11 +94,29 @@ export function PersonaControls({
             onChange={(event) => onPersonaId(event.target.value)}
             aria-label="Job Persona"
           >
-            {personas.map((persona) => (
+            {groups.defaults.map((persona) => (
               <option key={persona.id} value={persona.id}>
-                {persona.isDefault ? `${persona.title} (default)` : persona.title}
+                {personaLabel(persona)}
               </option>
             ))}
+            {groups.tracks.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.items.map((persona) => (
+                  <option key={persona.id} value={persona.id}>
+                    {personaLabel(persona)}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            {groups.custom.length > 0 ? (
+              <optgroup label="Your jobs">
+                {groups.custom.map((persona) => (
+                  <option key={persona.id} value={persona.id}>
+                    {personaLabel(persona)}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
           <button
             type="button"

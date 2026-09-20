@@ -25,32 +25,11 @@ import {
 import { trackClick } from "./lib/events.ts";
 import { extractFromFile } from "./lib/extract.ts";
 import { loadVisitorId, persistVisitorId } from "./lib/visitor.ts";
+import { DEFAULT_PRESET, parsePresetPersonaId, presetById } from "../shared/resume-presets.ts";
 
-const DEMO_RESUME = `Jane Doe
-Staff Software Engineer
+const DEMO_RESUME = DEFAULT_PRESET.resumeText;
 
-Summary
-Distributed systems engineer who ships event-driven platforms.
-
-Experience
-- Built a Go + Kafka pipeline handling 2M events/day and cut p99 latency 40%
-- Led 6 engineers on a TypeScript control plane used by 30 product teams
-- Reduced AWS spend 18% by rewriting a hot path in Rust
-
-Skills
-Go, Kafka, TypeScript, PostgreSQL, Terraform
-
-Education
-B.S. Computer Science, State University
-`;
-
-const DEMO_JD = `Staff Backend Engineer
-- 5+ years building event-driven services in Go
-- Production Kafka or equivalent streaming experience
-- Mentors senior engineers and sets technical direction
-- Comfortable with Terraform and AWS
-Unlimited PTO and a culture of snacks
-`;
+const DEMO_JD = DEFAULT_PRESET.jobText;
 
 type RateLimitNotice = {
   checkpoint: RateLimitCheckpoint;
@@ -102,8 +81,8 @@ export default function App() {
   const [personas, setPersonas] = useState<JobPersonaItem[]>([]);
   const [personaId, setPersonaId] = useState("default");
   const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState("Staff Backend Engineer");
-  const [tags, setTags] = useState("golang, kafka, staff");
+  const [title, setTitle] = useState(DEFAULT_PRESET.title);
+  const [tags, setTags] = useState(DEFAULT_PRESET.tags.join(", "));
   const [jobDescription, setJobDescription] = useState(DEMO_JD);
   const [visitors, setVisitors] = useState<number | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -311,7 +290,9 @@ export default function App() {
               </label>
               <button className="ghost" type="button" onClick={() => {
                 trackClick("/demo");
-                setResumeText(DEMO_RESUME);
+                const presetId = parsePresetPersonaId(personaId);
+                const preset = presetId ? presetById(presetId) : DEFAULT_PRESET;
+                setResumeText(preset?.resumeText ?? DEFAULT_PRESET.resumeText);
               }}>
                 Load demo
               </button>

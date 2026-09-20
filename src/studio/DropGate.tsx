@@ -1,15 +1,27 @@
 import type { DragEvent, ReactNode } from "react";
+import { DEFAULT_PRESET_ID } from "../../shared/resume-presets.ts";
 import { trackClick } from "../lib/events.ts";
+import { PresetSelect } from "./PresetSelect.tsx";
 
 type DropGateProps = {
   hot: boolean;
   onHot: (value: boolean) => void;
   onFiles: (files: FileList | null) => void;
-  onDemo: () => void;
+  onDemo: (presetId: string) => void;
+  demoPresetId: string;
+  onDemoPresetId: (id: string) => void;
   jobSlot?: ReactNode;
 };
 
-export function DropGate({ hot, onHot, onFiles, onDemo, jobSlot }: DropGateProps) {
+export function DropGate({
+  hot,
+  onHot,
+  onFiles,
+  onDemo,
+  demoPresetId,
+  onDemoPresetId,
+  jobSlot,
+}: DropGateProps) {
   function onDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     onHot(false);
@@ -30,6 +42,14 @@ export function DropGate({ hot, onHot, onFiles, onDemo, jobSlot }: DropGateProps
         <PdfGlyph />
         <h1>Drop a resume PDF</h1>
         <p>The page stays a page. Jev reads it underneath, then marks the regions that need work.</p>
+        <div className="demo-preset">
+          <PresetSelect
+            id="demo-resume-preset"
+            value={demoPresetId || DEFAULT_PRESET_ID}
+            label="Sample resume"
+            onChange={onDemoPresetId}
+          />
+        </div>
         <div className="drop-actions">
           <label className="primary tight">
             Choose PDF
@@ -42,7 +62,7 @@ export function DropGate({ hot, onHot, onFiles, onDemo, jobSlot }: DropGateProps
           </label>
           <button className="ghost tight" type="button" onClick={() => {
             trackClick("/demo");
-            onDemo();
+            onDemo(demoPresetId || DEFAULT_PRESET_ID);
           }}>
             Load demo PDF
           </button>

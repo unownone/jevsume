@@ -46,6 +46,17 @@ import {
   trimJobTarget,
   type JobTarget,
 } from "../shared/job-target.ts";
+import {
+  jobFieldsFromPreset,
+  levelLabel,
+  parsePresetPersonaId,
+  PRESET_CREATED_AT,
+  presetById,
+  presetPersonaId,
+  RESUME_PRESETS,
+  trackLabel,
+  type ResumePreset,
+} from "../shared/resume-presets.ts";
 import { validityEvidenceFromTree } from "../shared/score-pair.ts";
 import { buildProctorBlocks, extractRequirementCandidates, groupResumeText } from "./ats/group.ts";
 import { hashJson, sha256Hex } from "./storage/hash.ts";
@@ -68,6 +79,9 @@ export type JobPersonaCatalogItem = {
   requirementCount: number;
   createdAt: string;
   jobDescription?: string;
+  track?: string;
+  level?: string;
+  isPreset?: boolean;
 };
 
 function catalogFromDefault(includeDescription = false): JobPersonaCatalogItem {
@@ -85,6 +99,31 @@ function catalogFromDefault(includeDescription = false): JobPersonaCatalogItem {
     item.jobDescription = DEFAULT_PERSONA.jobDescription;
   }
   return item;
+}
+
+function catalogFromPreset(preset: ResumePreset, includeDescription = false): JobPersonaCatalogItem {
+  const excerpt = preset.jobText.replace(/\s+/g, " ").trim().slice(0, 280);
+  const item: JobPersonaCatalogItem = {
+    id: presetPersonaId(preset.id),
+    title: preset.title,
+    tags: [...preset.tags],
+    isDefault: false,
+    summary: preset.blurb,
+    explanation: `Built-in ${trackLabel(preset.track)} · ${levelLabel(preset.level)} lens. Jev will read the resume as if screening for ${preset.title}. ${excerpt}`,
+    requirementCount: extractRequirementCandidates(preset.jobText).length,
+    createdAt: PRESET_CREATED_AT,
+    track: trackLabel(preset.track),
+    level: levelLabel(preset.level),
+    isPreset: true,
+  };
+  if (includeDescription) {
+    item.jobDescription = composeJobDescription(jobFieldsFromPreset(preset));
+  }
+  return item;
+}
+
+function jobPersonaFromPreset(preset: ResumePreset): JobPersona {
+  return personaFromJobTarget(jobFieldsFromPreset(preset), presetPersonaId(preset.id), preset.tags);
 }
 
 function catalogFromStored(persona: JobPersona, includeDescription = false): JobPersonaCatalogItem {
@@ -105,15 +144,15 @@ function catalogFromStored(persona: JobPersona, includeDescription = false): Job
   return item;
 }
 
-function personaFromJobTarget(input: JobTarget): JobPersona {
+function personaFromJobTarget(input: JobTarget, id = JOB_TARGET_PERSONA_ID, tags?: string[]): JobPersona {
   const target = trimJobTarget(input);
   const jobDescription = composeJobDescription(target);
   const title = target.jobTitle || jobTargetLabel(target);
   const lines = extractRequirementCandidates(jobDescription);
   return {
-    id: JOB_TARGET_PERSONA_ID,
+    id,
     title,
-    tags: target.company ? [target.company] : [],
+    tags: tags ?? (target.company ? [target.company] : []),
     jobDescription,
     requirements: lines.map((text, index) => ({
       id: `r${index + 1}`,
@@ -261,12 +300,21 @@ export class ReviewEngine {
 
   async listJobPersonas(): Promise<JobPersonaCatalogItem[]> {
     const stored = await this.stores.personas.list();
-    return [catalogFromDefault(), ...stored.map((persona) => catalogFromStored(persona))];
+    return [
+      catalogFromDefault(),
+      ...RESUME_PRESETS.map((preset) => catalogFromPreset(preset)),
+      ...stored.map((persona) => catalogFromStored(persona)),
+    ];
   }
 
   async getJobPersona(id: string): Promise<JobPersonaCatalogItem | null> {
     if (id === DEFAULT_PERSONA_ID) {
       return catalogFromDefault(true);
+    }
+    const presetId = parsePresetPersonaId(id);
+    if (presetId) {
+      const preset = presetById(presetId);
+      return preset ? catalogFromPreset(preset, true) : null;
     }
     const persona = await this.stores.personas.get(id);
     if (!persona) {
@@ -294,6 +342,17 @@ export class ReviewEngine {
     if (!personaId || personaId === DEFAULT_PERSONA_ID) {
       return this.generalReview(resumeText, meta);
     }
+    const presetId = parsePresetPersonaId(personaId);
+    if (presetId) {
+      const preset = presetById(presetId);
+      if (!preset) {
+        return { error: "not_found" };
+      }
+      return this.jobTargetReview(resumeText, jobFieldsFromPreset(preset), {
+        ...meta,
+        jobTarget: jobFieldsFromPreset(preset),
+      });
+    }
     return this.jobReview(resumeText, personaId, meta);
   }
 
@@ -313,6 +372,16 @@ export class ReviewEngine {
       return;
     }
     if (personaId && personaId !== DEFAULT_PERSONA_ID) {
+      const presetId = parsePresetPersonaId(personaId);
+      if (presetId) {
+        const preset = presetById(presetId);
+        if (!preset) {
+          yield { type: "error", message: "Persona not found" };
+          return;
+        }
+        yield* this.streamProctorReview(resumeText, meta, jobPersonaFromPreset(preset));
+        return;
+      }
       const persona = await this.stores.personas.get(personaId);
       if (!persona) {
         yield { type: "error", message: "Persona not found" };
@@ -503,6 +572,17 @@ export class ReviewEngine {
     personaId: string,
     meta?: ResumeMeta,
   ): Promise<PersistedReview | { error: "not_found" }> {
+    const presetId = parsePresetPersonaId(personaId);
+    if (presetId) {
+      const preset = presetById(presetId);
+      if (!preset) {
+        return { error: "not_found" };
+      }
+      return this.runJobReview(resumeText, jobPersonaFromPreset(preset), {
+        ...meta,
+        jobTarget: jobFieldsFromPreset(preset),
+      });
+    }
     const persona = await this.stores.personas.get(personaId);
     if (!persona) {
       return { error: "not_found" };
