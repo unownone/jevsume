@@ -33,7 +33,7 @@ export const DEMO_FINDINGS: OverlayFinding[] = [
     title: "The metric floats",
     detail: "18% is real. The line never says what the hot path was, so the number has nothing to hang on.",
     rewrite: "Cut AWS spend 18% by rewriting the Kafka consumer hot path in Rust.",
-    needle: "Reduced AWS spend 18% by rewriting a hot path in Rust",
+    needle: "Reduced AWS spend 18%",
     box: null,
     origin: "jev",
   },

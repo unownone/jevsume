@@ -61,11 +61,23 @@ export async function collectGlyphs(pdf: PDFDocumentProxy): Promise<GlyphBox[]> 
   return glyphs;
 }
 
+const inflight = new WeakMap<HTMLCanvasElement, { cancel: () => void }>();
+
+function isRenderCancelled(caught: unknown): boolean {
+  return Boolean(
+    caught &&
+      typeof caught === "object" &&
+      "name" in caught &&
+      (caught as { name: string }).name === "RenderingCancelledException",
+  );
+}
+
 export async function renderPage(
   page: PDFPageProxy,
   canvas: HTMLCanvasElement,
   cssWidth: number,
 ): Promise<{ width: number; height: number }> {
+  inflight.get(canvas)?.cancel();
   const unscaled = page.getViewport({ scale: 1 });
   const outputScale = window.devicePixelRatio || 1;
   const scale = (cssWidth * outputScale) / unscaled.width;
@@ -74,10 +86,18 @@ export async function renderPage(
   canvas.height = Math.floor(viewport.height);
   canvas.style.width = `${cssWidth}px`;
   canvas.style.height = `${cssWidth * (unscaled.height / unscaled.width)}px`;
-  await page.render({
+  const task = page.render({
     canvas,
     viewport,
-  }).promise;
+  });
+  inflight.set(canvas, task);
+  try {
+    await task.promise;
+  } catch (caught) {
+    if (!isRenderCancelled(caught)) {
+      throw caught;
+    }
+  }
   return {
     width: cssWidth,
     height: cssWidth * (unscaled.height / unscaled.width),

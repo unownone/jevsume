@@ -550,6 +550,10 @@
     grid-column: 2;
   }
 
+  .chrome-end .ghost {
+    display: none;
+  }
+
   .chrome-center {
     display: none;
   }
@@ -569,19 +573,19 @@
   }
 
   .mock-scenes {
-    top: 62px;
-    bottom: auto;
+    top: auto;
+    bottom: 86px;
     left: 12px;
-    right: 12px;
-    justify-content: center;
+    right: auto;
   }
 
   .paper {
     width: min(var(--paper-base), calc(100vw - 24px));
   }
 
-  .studio:has(.overlay-note.is-sheet) .trigger-dock {
-    bottom: 54dvh;
+  .studio:has(.overlay-note.is-sheet) .trigger-dock,
+  .studio:has(.overlay-note.is-sheet) .mock-scenes {
+    display: none;
   }
 }
 

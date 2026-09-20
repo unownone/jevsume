@@ -36,17 +36,30 @@ export function boxForNeedle(glyphs: GlyphBox[], needle: string): PageBox | null
     pages.set(glyph.page, list);
   }
   for (const [, items] of pages) {
-    for (let start = 0; start < items.length; start += 1) {
-      let joined = "";
-      for (let end = start; end < items.length; end += 1) {
-        joined = `${joined} ${items[end]?.str ?? ""}`.replace(/\s+/g, " ").trim();
-        if (joined.toLowerCase().includes(target)) {
-          return unionBoxes(items.slice(start, end + 1));
-        }
-        if (joined.length > target.length + 48) {
-          break;
+    const parts = items.map((item) => item.str.replace(/\s+/g, " ").trim());
+    const haystack = parts.join(" ").toLowerCase();
+    const startAt = haystack.indexOf(target);
+    if (startAt === -1) {
+      continue;
+    }
+    const endAt = startAt + target.length;
+    const covered: GlyphBox[] = [];
+    let cursor = 0;
+    for (let index = 0; index < items.length; index += 1) {
+      const length = parts[index]?.length ?? 0;
+      const start = cursor;
+      const end = cursor + length;
+      if (end > startAt && start < endAt) {
+        const item = items[index];
+        if (item) {
+          covered.push(item);
         }
       }
+      cursor = end + 1;
+    }
+    const box = unionBoxes(covered);
+    if (box) {
+      return box;
     }
   }
   return null;

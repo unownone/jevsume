@@ -15,6 +15,16 @@ describe("boxForNeedle", () => {
     expect(box).toEqual({ page: 1, x: 10, y: 20, w: 68, h: 2 });
   });
 
+  it("does not grow the box backward into earlier lines", () => {
+    const page: GlyphBox[] = [
+      { page: 1, str: "Jane Doe", x: 10, y: 8, w: 20, h: 3 },
+      { page: 1, str: "Summary", x: 10, y: 16, w: 12, h: 2 },
+      { page: 1, str: "Distributed systems engineer who ships event-driven platforms.", x: 10, y: 20, w: 70, h: 4 },
+    ];
+    const box = boxForNeedle(page, "Distributed systems engineer who ships event-driven platforms");
+    expect(box).toEqual({ page: 1, x: 10, y: 20, w: 70, h: 4 });
+  });
+
   it("returns null when the needle is absent", () => {
     expect(boxForNeedle(glyphs, "Python")).toBeNull();
   });
