@@ -17,7 +17,7 @@ export function DropGate({ hot, onHot, onFiles, onDemo }: DropGateProps) {
   return (
     <div className="drop-gate">
       <article
-        className={`drop-plate${hot ? " is-hot" : ""}`}
+        className={`drop-plate${hot ? " is-hot" : ""} bounce-in`}
         onDragOver={(event) => {
           event.preventDefault();
           onHot(true);
@@ -43,7 +43,7 @@ export function DropGate({ hot, onHot, onFiles, onDemo }: DropGateProps) {
           </button>
         </div>
       </article>
-      <article className="drop-plate is-soon" aria-disabled="true">
+      <article className="drop-plate is-soon bounce-in delay" aria-disabled="true">
         <LinkedInGlyph />
         <h2>LinkedIn PDF</h2>
         <p>Export from LinkedIn, drop it here. Same canvas, same marks. Not wired yet.</p>

@@ -1,6 +1,8 @@
 import * as pdfjs from "pdfjs-dist";
+import { Util } from "pdfjs-dist";
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { isPlausibleGlyph } from "./boxes.ts";
 import type { GlyphBox } from "./types.ts";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -38,24 +40,29 @@ export async function collectGlyphs(pdf: PDFDocumentProxy): Promise<GlyphBox[]> 
         continue;
       }
       const text = item;
-      const [, , , , e, f] = text.transform;
-      const originX = typeof e === "number" ? e : 0;
-      const originY = typeof f === "number" ? f : 0;
-      const fontHeight = text.height || Math.hypot(Number(text.transform[2]), Number(text.transform[3])) || 11;
-      const [x1, y1] = viewport.convertToViewportPoint(originX, originY);
-      const [x2, y2] = viewport.convertToViewportPoint(originX + text.width, originY + fontHeight);
-      const left = Math.min(x1, x2);
-      const top = Math.min(y1, y2);
-      const width = Math.abs(x2 - x1) || text.width;
-      const height = Math.abs(y2 - y1) || fontHeight;
-      glyphs.push({
+      const tx = Util.transform(viewport.transform, text.transform);
+      const fontHeight = Math.hypot(Number(tx[2]), Number(tx[3]));
+      const xScale = Math.hypot(Number(tx[0]), Number(tx[1])) || 1;
+      const sourceScale = Math.hypot(Number(text.transform[0]), Number(text.transform[1])) || 1;
+      const left = Number(tx[4]);
+      const top = Number(tx[5]) - fontHeight;
+      const width = text.width * (xScale / sourceScale);
+      const height = fontHeight;
+      if (!Number.isFinite(left) || !Number.isFinite(top) || width <= 0 || height <= 0) {
+        continue;
+      }
+      const glyph: GlyphBox = {
         page: pageNumber,
         str: text.str,
         x: (left / viewport.width) * 100,
         y: (top / viewport.height) * 100,
         w: (width / viewport.width) * 100,
         h: (height / viewport.height) * 100,
-      });
+      };
+      if (!isPlausibleGlyph(glyph)) {
+        continue;
+      }
+      glyphs.push(glyph);
     }
   }
   return glyphs;

@@ -7,10 +7,13 @@ type OverlayNoteProps = {
   messages: ChatMessage[];
   draft: string;
   compact: boolean;
+  total: number;
   onDraft: (value: string) => void;
   onSend: () => void;
   onClose: () => void;
   onIgnore: () => void;
+  onPrev: () => void;
+  onNext: () => void;
 };
 
 export function OverlayNote({
@@ -18,10 +21,13 @@ export function OverlayNote({
   messages,
   draft,
   compact,
+  total,
   onDraft,
   onSend,
   onClose,
   onIgnore,
+  onPrev,
+  onNext,
 }: OverlayNoteProps) {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -43,6 +49,18 @@ export function OverlayNote({
           <CloseIcon />
         </button>
       </header>
+      <div className="note-pager">
+        <button type="button" className="ghost tight" onClick={onPrev} disabled={finding.index <= 1}>
+          Prev
+        </button>
+        <span>
+          {finding.index} / {total}
+        </span>
+        <button type="button" className="ghost tight" onClick={onNext} disabled={finding.index >= total}>
+          Next
+        </button>
+      </div>
+      {finding.quote ? <p className="note-quote">{finding.quote}</p> : null}
       <div className="note-thread" role="log">
         {messages.map((message) => (
           <p key={message.id} className={`bubble ${message.from}`}>

@@ -17,6 +17,7 @@ export const DEMO_FINDINGS: OverlayFinding[] = [
     needle: "Distributed systems engineer who ships event-driven platforms",
     box: null,
     origin: "jev",
+    index: 1,
   },
   {
     id: "pipeline-proof",
@@ -26,6 +27,7 @@ export const DEMO_FINDINGS: OverlayFinding[] = [
     needle: "Built a Go + Kafka pipeline handling 2M events/day",
     box: null,
     origin: "jev",
+    index: 2,
   },
   {
     id: "rust-hotpath",
@@ -36,6 +38,7 @@ export const DEMO_FINDINGS: OverlayFinding[] = [
     needle: "Reduced AWS spend 18%",
     box: null,
     origin: "jev",
+    index: 3,
   },
   {
     id: "mentorship-gap",
@@ -46,5 +49,6 @@ export const DEMO_FINDINGS: OverlayFinding[] = [
     needle: "Led 6 engineers on a TypeScript control plane",
     box: null,
     origin: "jev",
+    index: 4,
   },
 ];

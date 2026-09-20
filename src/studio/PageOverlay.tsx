@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { OverlayFinding, PageBox } from "./types.ts";
-import { severityLabel } from "./severity.ts";
 
 type PageOverlayProps = {
   page: number;
@@ -83,53 +82,67 @@ export function PageOverlay({
   }, [drawMode]);
 
   return (
-    <svg
-      className={`page-overlay${drawMode ? " is-draw" : ""}`}
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      aria-hidden={drawMode ? undefined : true}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-    >
-      {pageFindings.map((finding) => {
+    <div className={`page-overlay${drawMode ? " is-draw" : ""}`}>
+      {pageFindings.map((finding, order) => {
         const box = finding.box;
         if (!box) {
           return null;
         }
         const active = finding.id === activeId;
         const hot = finding.id === hoveredId;
+        const pinLeft = Math.max(4.2, box.x + 1.4);
         return (
-          <g
+          <div
             key={finding.id}
-            className={`mark-box ${finding.severity}${active ? " is-active" : ""}${hot ? " is-hot" : ""}`}
+            className={`mark ${finding.severity}${active ? " is-active" : ""}${hot ? " is-hot" : ""}`}
+            style={{ "--i": finding.index || order + 1 } as CSSProperties}
           >
-            <rect
-              x={box.x}
-              y={box.y}
-              width={box.w}
-              height={box.h}
-              rx={0.7}
+            <button
+              type="button"
+              data-mark={finding.id}
+              className="mark-hit"
+              style={{
+                left: `${box.x}%`,
+                top: `${box.y}%`,
+                width: `${box.w}%`,
+                height: `${Math.max(box.h, 1.2)}%`,
+              }}
+              aria-label={`Note ${finding.index}: ${finding.title}`}
+              aria-pressed={active}
               onClick={() => onSelect(finding.id)}
               onMouseEnter={() => onHover(finding.id)}
               onMouseLeave={() => onHover(null)}
             />
-            <g
-              className="pin"
-              transform={`translate(${Math.min(box.x + box.w, 97)} ${box.y})`}
+            <button
+              type="button"
+              className="mark-pin"
+              style={{
+                left: `${pinLeft}%`,
+                top: `${box.y + Math.max(box.h, 1.2) / 2}%`,
+              }}
+              aria-label={`Open note ${finding.index}`}
               onClick={() => onSelect(finding.id)}
+              onMouseEnter={() => onHover(finding.id)}
+              onMouseLeave={() => onHover(null)}
             >
-              <circle r="1.85" />
-              <text textAnchor="middle" dominantBaseline="central" fontSize="1.6">
-                {severityLabel(finding.severity).slice(0, 1)}
-              </text>
-            </g>
-          </g>
+              {finding.index}
+            </button>
+          </div>
         );
       })}
-      {draft ? (
-        <rect className="draft-box" x={draft.x} y={draft.y} width={draft.w} height={draft.h} rx={0.7} />
-      ) : null}
-    </svg>
+      <svg
+        className="draw-layer"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden={drawMode ? undefined : true}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {draft ? (
+          <rect className="draft-box" x={draft.x} y={draft.y} width={draft.w} height={draft.h} rx={0.7} />
+        ) : null}
+      </svg>
+    </div>
   );
 }

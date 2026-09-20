@@ -99,7 +99,7 @@ export function PdfStage({
       {Array.from({ length: pageCount }, (_, index) => {
         const page = index + 1;
         return (
-          <article className={`paper${reading ? " is-reading" : ""}`} key={page} data-page={page}>
+          <article className={`paper${reading ? " is-reading" : ""}${findings.length ? " is-marked" : ""}`} key={page} data-page={page}>
             <canvas
               ref={(node) => {
                 if (node) {
@@ -119,7 +119,17 @@ export function PdfStage({
               onHover={onHover}
               onDraw={onDraw}
             />
-            {reading ? <div className="reading-veil">Jev is reading this page</div> : null}
+            {reading ? (
+              <>
+                <div className="scan-line" />
+                <div className="reading-veil">Jev is reading this page</div>
+                <div className="read-ticks" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </>
+            ) : null}
           </article>
         );
       })}

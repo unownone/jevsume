@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { boxForNeedle, padBox } from "./boxes.ts";
-import { DEMO_FINDINGS, DEMO_PERSONA } from "./demo.ts";
+import { formatJevScore, scoreTone } from "../../shared/format.ts";
+import { DEMO_PERSONA } from "./demo.ts";
+import { linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { DropGate } from "./DropGate.tsx";
 import { Leader } from "./Leader.tsx";
 import { OverlayNote } from "./OverlayNote.tsx";
 import { PdfStage } from "./PdfStage.tsx";
+import { ScorePanel } from "./ScorePanel.tsx";
 import "./studio.css";
 import type { ChatMessage, GlyphBox, OverlayFinding, PageBox, Scene } from "./types.ts";
 
@@ -38,8 +40,33 @@ export default function StudioApp() {
   const [toRect, setToRect] = useState<DOMRect | null>(null);
   const noteRef = useRef<HTMLDivElement>(null);
   const markRef = useRef(1);
+  const glyphsRef = useRef<GlyphBox[]>([]);
+  const compactRef = useRef(false);
+
+  glyphsRef.current = glyphs;
+  compactRef.current = compact;
 
   const active = findings.find((finding) => finding.id === activeId) ?? null;
+  const score = useMemo(() => {
+    if (scene !== "reviewed") {
+      return null;
+    }
+    const judged = findings.filter((item) => item.origin === "jev");
+    if (judged.length === 0) {
+      return null;
+    }
+    return scoreFromDocument(linesFromGlyphs(glyphs), judged);
+  }, [findings, glyphs, scene]);
+
+  const stepFinding = useCallback((delta: number) => {
+    setActiveId((current) => {
+      const index = findings.findIndex((item) => item.id === current);
+      const next = findings[index + delta];
+      return next?.id ?? current;
+    });
+    setDraft("");
+  }, [findings]);
+
   const onGlyphs = useCallback((next: GlyphBox[]) => {
     setGlyphs(next);
   }, []);
@@ -59,10 +86,16 @@ export default function StudioApp() {
         setDrawMode(false);
         setPersonaOpen(false);
       }
+      if (event.key === "ArrowRight") {
+        stepFinding(1);
+      }
+      if (event.key === "ArrowLeft") {
+        stepFinding(-1);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [stepFinding]);
 
   const loadBuffer = useCallback(async (buffer: ArrayBuffer, name: string, next: Scene = "loaded") => {
     setError(null);
@@ -73,6 +106,7 @@ export default function StudioApp() {
     setActiveId(null);
     setDrawMode(false);
     setThreads({});
+    setGlyphs([]);
   }, []);
 
   const loadDemo = useCallback(
@@ -94,14 +128,19 @@ export default function StudioApp() {
     }
   }, [loadDemo]);
 
-  const attachBoxes = useCallback(
-    (source: OverlayFinding[], nextGlyphs: GlyphBox[]) =>
-      source.map((finding) => {
-        const box = finding.needle ? boxForNeedle(nextGlyphs, finding.needle) : finding.box;
-        return { ...finding, box: box ? padBox(box) : finding.box };
-      }),
-    [],
-  );
+  const attachFromPage = useCallback((nextGlyphs: GlyphBox[]) => {
+    const reviewed = reviewFromGlyphs(nextGlyphs);
+    setFindings(reviewed.findings);
+    setThreads(
+      Object.fromEntries(
+        reviewed.findings.map((finding) => [
+          finding.id,
+          [{ id: `${finding.id}-jev`, from: "jev" as const, text: finding.detail }],
+        ]),
+      ),
+    );
+    setActiveId(compactRef.current ? null : (reviewed.findings[0]?.id ?? null));
+  }, []);
 
   useEffect(() => {
     if (scene !== "reviewed" || glyphs.length === 0) {
@@ -110,18 +149,8 @@ export default function StudioApp() {
     if (findings.some((item) => item.origin === "jev")) {
       return;
     }
-    const next = attachBoxes(DEMO_FINDINGS, glyphs);
-    setFindings(next);
-    setThreads(
-      Object.fromEntries(
-        next.map((finding) => [
-          finding.id,
-          [{ id: `${finding.id}-jev`, from: "jev" as const, text: finding.detail }],
-        ]),
-      ),
-    );
-    setActiveId(next[0]?.id ?? null);
-  }, [attachBoxes, findings, glyphs, scene]);
+    attachFromPage(glyphs);
+  }, [attachFromPage, findings, glyphs, scene]);
 
   async function onFiles(files: FileList | null) {
     const file = files?.[0];
@@ -142,18 +171,17 @@ export default function StudioApp() {
     setReading(true);
     setDrawMode(false);
     setError(null);
-    await new Promise((resolve) => window.setTimeout(resolve, 1100));
-    const next = attachBoxes(DEMO_FINDINGS, glyphs);
-    setFindings(next);
-    setThreads(
-      Object.fromEntries(
-        next.map((finding) => [
-          finding.id,
-          [{ id: `${finding.id}-jev`, from: "jev" as const, text: finding.detail }],
-        ]),
-      ),
-    );
-    setActiveId(next[0]?.id ?? null);
+    await new Promise((resolve) => window.setTimeout(resolve, 2100));
+    const started = Date.now();
+    while (glyphsRef.current.length === 0 && Date.now() - started < 2500) {
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+    }
+    if (glyphsRef.current.length === 0) {
+      setError("The page is still rendering. Try Review with Jev again.");
+      setReading(false);
+      return;
+    }
+    attachFromPage(glyphsRef.current);
     setScene("reviewed");
     setReading(false);
   }
@@ -169,6 +197,8 @@ export default function StudioApp() {
       needle: "",
       box,
       origin: "you",
+      index: findings.length + 1,
+      quote: "Your mark on the page.",
     };
     setFindings((current) => [...current, finding]);
     setThreads((current) => ({
@@ -220,24 +250,30 @@ export default function StudioApp() {
   }
 
   useEffect(() => {
+    if (!activeId) {
+      return;
+    }
+    const mark = document.querySelector<HTMLElement>(`[data-mark="${activeId}"]`);
+    mark?.scrollIntoView({
+      block: compact ? "center" : "center",
+      inline: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [activeId, compact]);
+
+  useEffect(() => {
     if (!active?.box || compact) {
       setFromRect(null);
       return;
     }
     const paper = document.querySelector<HTMLElement>(`.paper[data-page="${active.box.page}"]`);
-    if (!paper) {
+    const mark = document.querySelector<HTMLElement>(`[data-mark="${active.id}"]`);
+    const origin = mark ?? paper;
+    if (!origin) {
       setFromRect(null);
       return;
     }
-    const bounds = paper.getBoundingClientRect();
-    setFromRect(
-      new DOMRect(
-        bounds.left + (active.box.x / 100) * bounds.width,
-        bounds.top + (active.box.y / 100) * bounds.height,
-        (active.box.w / 100) * bounds.width,
-        (active.box.h / 100) * bounds.height,
-      ),
-    );
+    setFromRect(origin.getBoundingClientRect());
   }, [active, compact, findings, zoom]);
 
   useLayoutEffect(() => {
@@ -245,10 +281,12 @@ export default function StudioApp() {
   }, [active, compact, fromRect]);
 
   const messages = active ? (threads[active.id] ?? []) : [];
-  const score = useMemo(() => (scene === "reviewed" ? "6.4" : null), [scene]);
 
   return (
-    <div className="studio" style={{ "--zoom": String(zoom) } as CSSProperties}>
+    <div
+      className={`studio${scene === "reviewed" ? " is-reviewed" : ""}${reading ? " is-loading" : ""}`}
+      style={{ "--zoom": String(zoom) } as CSSProperties}
+    >
       <header className="studio-chrome">
         <a className="brand" href="/">
           <img className="brand-mark" src="/jev-mark.svg" width={32} height={32} alt="" />
@@ -263,10 +301,26 @@ export default function StudioApp() {
           {filename && data ? <span className="file-chip">{filename}</span> : null}
         </div>
         <div className="chrome-end">
-          {score ? (
-            <div className="score-orb" aria-label={`JevScore ${score}`}>
-              {score}
+          {reading ? (
+            <div className="score-orb is-reading" aria-label="Reading">
+              <span />
+              <span />
+              <span />
             </div>
+          ) : null}
+          {score ? (
+            <button
+              type="button"
+              className={`score-chip ${scoreTone(score.value)}`}
+              aria-label={`JevScore ${formatJevScore(score.value)}, ${score.noteCount} notes`}
+              onClick={() => {
+                const panel = document.querySelector(".score-panel");
+                panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              }}
+            >
+              <div className={`score-orb ${scoreTone(score.value)}`}>{formatJevScore(score.value)}</div>
+              <span>{score.noteCount} notes</span>
+            </button>
           ) : null}
           <a className="ghost tight" href="/?view=classic">
             Text review
@@ -275,13 +329,14 @@ export default function StudioApp() {
       </header>
 
       {personaOpen ? (
-        <div className="persona-pop">
+        <div className="persona-pop bounce-in">
           <strong>{DEMO_PERSONA.title}</strong>
           <p>{DEMO_PERSONA.summary}</p>
         </div>
       ) : null}
 
-      <main className="stage">
+      <main className={`stage${active && !compact ? " has-note" : ""}${score ? " has-score" : ""}`}>
+        {score ? <ScorePanel score={score} /> : null}
         {scene === "empty" || !data ? (
           <DropGate hot={hot} onHot={setHot} onFiles={(files) => void onFiles(files)} onDemo={() => void loadDemo()} />
         ) : (
@@ -302,30 +357,38 @@ export default function StudioApp() {
         {active && !compact ? (
           <div className="note-rail" ref={noteRef}>
             <OverlayNote
+              key={active.id}
               finding={active}
               messages={messages}
               draft={draft}
               compact={false}
+              total={findings.length}
               onDraft={setDraft}
               onSend={onSend}
               onClose={() => setActiveId(null)}
               onIgnore={onIgnore}
+              onPrev={() => stepFinding(-1)}
+              onNext={() => stepFinding(1)}
             />
           </div>
         ) : null}
-        {!compact ? <Leader from={fromRect} to={toRect} /> : null}
+        {!compact ? <Leader key={active?.id ?? "none"} from={fromRect} to={toRect} /> : null}
       </main>
 
       {active && compact ? (
         <OverlayNote
+          key={active.id}
           finding={active}
           messages={messages}
           draft={draft}
           compact
+          total={findings.length}
           onDraft={setDraft}
           onSend={onSend}
           onClose={() => setActiveId(null)}
           onIgnore={onIgnore}
+          onPrev={() => stepFinding(-1)}
+          onNext={() => stepFinding(1)}
         />
       ) : null}
 
@@ -346,7 +409,7 @@ export default function StudioApp() {
           <button type="button" className="ghost tight" onClick={() => setZoom((value) => Math.min(1.45, value + 0.15))}>
             +
           </button>
-          <button className="primary tight" type="button" disabled={reading} onClick={() => void onReview()}>
+          <button className={`primary tight${reading ? " is-busy" : ""}`} type="button" disabled={reading} onClick={() => void onReview()}>
             {reading ? "Reading…" : "Review with Jev"}
           </button>
         </div>

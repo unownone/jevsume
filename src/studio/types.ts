@@ -20,15 +20,31 @@ export type OverlayFinding = {
   title: string;
   detail: string;
   rewrite?: string;
+  quote?: string;
   needle: string;
   box: PageBox | null;
   origin: "jev" | "you";
+  index: number;
 };
 
 export type ChatMessage = {
   id: string;
   from: "jev" | "you";
   text: string;
+};
+
+export type ScoreDimension = {
+  id: string;
+  label: string;
+  score: number;
+  max: number;
+};
+
+export type StudioScore = {
+  value: number;
+  verdict: string;
+  noteCount: number;
+  dimensions: ScoreDimension[];
 };
 
 export type PageMetrics = {
