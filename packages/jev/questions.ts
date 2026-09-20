@@ -34,10 +34,13 @@ export const WEAKEST_DIMENSION_CRITERIA: Record<string, string> = {
 };
 
 export const SECTION_KIND_CRITERIA: Record<string, string> = {
+  header: "Name, contact, or title block at the top of the page.",
   summary: "Professional summary, profile, or objective.",
-  experience: "Paid or equivalent work history.",
+  experience: "Paid or equivalent work history as a group of roles.",
+  job: "A single role with a title, employer, and bullets.",
   education: "Degrees, schools, or coursework.",
   skills: "Skill tokens, tools, or languages.",
+  accolades: "Awards, honors, certifications, or publications.",
   projects: "Projects, open source, or portfolio work.",
   other: "None of the above.",
 };

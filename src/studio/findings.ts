@@ -1,5 +1,4 @@
 import { clusterLines, isPlausibleBox, padBox, unionBoxes } from "./boxes.ts";
-import { DEMO_PERSONA } from "./demo.ts";
 import {
   analyzeDocument,
   jobsLine,
@@ -11,6 +10,15 @@ import {
   suggestionsFromAnalysis,
   weakLine,
 } from "./analyze.ts";
+import {
+  hasJobTarget,
+  jobTargetAsksMentorship,
+  jobTargetLabel,
+  jobTargetSeniority,
+  resumeSeniority,
+  seniorityMismatch,
+  type JobTarget,
+} from "../../shared/job-target.ts";
 import type { DocumentLine, GlyphBox, OverlayFinding, PageBox, ScoreDimension, Severity, StudioScore } from "./types.ts";
 
 const FINDING_CAP = 28;
@@ -80,7 +88,7 @@ function boxed(line: DocumentLine): PageBox | null {
   return padBox(line.box);
 }
 
-function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "origin" | "index"> | null {
+function judge(line: DocumentLine, whole: string, target?: JobTarget): Omit<OverlayFinding, "id" | "origin" | "index"> | null {
   const text = line.text;
   const box = boxed(line);
   if (!box || isNoise(text)) {
@@ -100,12 +108,15 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
 
   if (/led |mentor|managed |hired |staffed /i.test(text)) {
     const taught = /mentor|coached|mentees|grew engineers/i.test(text);
+    const wantsMentor = jobTargetAsksMentorship(target);
     return {
-      severity: taught ? "works" : "missing",
-      title: taught ? "Mentorship is on the page" : "Staffing without teaching",
+      severity: taught ? "works" : wantsMentor ? "missing" : "partial",
+      title: taught ? "Mentorship is on the page" : wantsMentor ? "Staffing without teaching" : "Team size without teaching",
       detail: taught
         ? `“${clip(text, 70)}” names who grew. Keep it next to the team size.`
-        : `“${clip(text, 70)}” names a team. ${DEMO_PERSONA.title} wants someone who mentors seniors — say who, and what changed.`,
+        : wantsMentor
+          ? `“${clip(text, 70)}” names a team. ${jobTargetLabel(target)} wants someone who mentors seniors — say who, and what changed.`
+          : `“${clip(text, 70)}” names a team. Say who you taught, or what changed because you led.`,
       quote: text,
       needle: text.slice(0, 48),
       box,
@@ -139,10 +150,13 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
   }
 
   if (/python|typescript|javascript|golang|\bgo\b|kafka|react|postgres|aws|docker/i.test(text) && text.includes(",")) {
+    const lens = hasJobTarget(target)
+      ? `${jobTargetLabel(target)} already named a few of these — put the rare ones next to the work.`
+      : "Put the rare ones next to the work so a hiring lens can keep them.";
     return {
       severity: "partial",
       title: "Skills are a dump",
-      detail: `“${clip(text, 70)}” is parseable and forgettable. ${DEMO_PERSONA.title} already asked for a few of these — put the rare ones next to the work.`,
+      detail: `“${clip(text, 70)}” is parseable and forgettable. ${lens}`,
       quote: text,
       needle: text.slice(0, 48),
       box,
@@ -177,11 +191,11 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
     };
   }
 
-  if (!/mentor/i.test(whole) && /experience/i.test(text)) {
+  if (!/mentor/i.test(whole) && /experience/i.test(text) && jobTargetAsksMentorship(target)) {
     return {
       severity: "missing",
       title: "Mentorship never appears",
-      detail: `${DEMO_PERSONA.title} asks for someone who mentors seniors. Nothing on the page says it.`,
+      detail: `${jobTargetLabel(target)} asks for someone who mentors seniors. Nothing on the page says it.`,
       quote: text,
       needle: text.slice(0, 48),
       box,
@@ -191,10 +205,16 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
   return null;
 }
 
-function personaGaps(lines: DocumentLine[], whole: string, usedY: Set<string>): OverlayFinding[] {
+function personaGaps(
+  lines: DocumentLine[],
+  whole: string,
+  usedY: Set<string>,
+  target?: JobTarget,
+): OverlayFinding[] {
   const extras: OverlayFinding[] = [];
   const experience = lines.find((line) => /experience/i.test(line.text) && line.text.length < 42) ?? lines[2];
-  if (!/mentor|coached|mentees/i.test(whole) && experience?.box) {
+
+  if (jobTargetAsksMentorship(target) && !/mentor|coached|mentees/i.test(whole) && experience?.box) {
     const key = `${experience.page}:${experience.box.y.toFixed(1)}:mentor`;
     if (!usedY.has(key)) {
       usedY.add(key);
@@ -204,7 +224,7 @@ function personaGaps(lines: DocumentLine[], whole: string, usedY: Set<string>): 
         index: 0,
         severity: "missing",
         title: "Mentorship never appears",
-        detail: `${DEMO_PERSONA.title} asks for someone who mentors seniors. The page never says who you grew.`,
+        detail: `${jobTargetLabel(target)} asks for someone who mentors seniors. The page never says who you grew.`,
         quote: experience.text,
         needle: experience.text.slice(0, 48),
         box: padBox(experience.box),
@@ -213,7 +233,75 @@ function personaGaps(lines: DocumentLine[], whole: string, usedY: Set<string>): 
       });
     }
   }
+
+  if (hasJobTarget(target)) {
+    const analysis = analyzeDocument(lines, target);
+    if (analysis.missingExpected.length > 0) {
+      const anchor =
+        lines.find((line) => isHeaderish(line.text) && /skills/i.test(line.text)) ??
+        experience ??
+        lines[0];
+      if (anchor?.box) {
+        extras.push({
+          id: "gap-keywords",
+          origin: "jev",
+          index: 0,
+          severity: "missing",
+          title: "Listing keywords are missing",
+          detail: `${jobTargetLabel(target)} asks for ${analysis.missingExpected.join(", ")}. The page never uses them.`,
+          quote: anchor.text,
+          needle: anchor.text.slice(0, 48),
+          box: padBox(anchor.box),
+          rewriteKind: "add-metric",
+        });
+      }
+    }
+
+    const wanted = jobTargetSeniority(target);
+    const found = resumeSeniority(whole);
+    if (seniorityMismatch(wanted, found) && experience?.box) {
+      extras.push({
+        id: "gap-seniority",
+        origin: "jev",
+        index: 0,
+        severity: "partial",
+        title: "Seniority is below the listing",
+        detail: `${jobTargetLabel(target)} reads as ${wanted}. The page reads as ${found}. Name the level you actually operated at.`,
+        quote: experience.text,
+        needle: experience.text.slice(0, 48),
+        box: padBox(experience.box),
+      });
+    }
+
+    for (const job of analysis.jobs) {
+      const hay = `${job.title} ${job.bullets.map((bullet) => bullet.text).join(" ")}`.toLowerCase();
+      const overlap = analysis.expectedSkills.filter((token) => hay.includes(token));
+      if (analysis.expectedSkills.length >= 2 && overlap.length === 0 && job.bullets[0]?.box) {
+        extras.push({
+          id: `gap-role-${job.title.slice(0, 24)}`,
+          origin: "jev",
+          index: 0,
+          severity: "partial",
+          title: "This role is off-target",
+          detail: `“${job.title.split("|")[0]?.trim()}” never names what ${jobTargetLabel(target)} asked for (${analysis.expectedSkills.slice(0, 4).join(", ")}).`,
+          quote: job.bullets[0].text,
+          needle: job.bullets[0].text.slice(0, 48),
+          box: padBox(job.bullets[0].box),
+        });
+      }
+    }
+  }
+
   return extras;
+}
+
+function isHeaderish(text: string): boolean {
+  return (
+    text.length < 42 &&
+    /^(skills|experience|work experience|education|summary|projects|contact|languages|certifications|frameworks|databases)\b/i.test(
+      text,
+    )
+  );
 }
 
 function numberFindings(findings: OverlayFinding[]): OverlayFinding[] {
@@ -232,31 +320,48 @@ function numberFindings(findings: OverlayFinding[]): OverlayFinding[] {
     .map((finding, index) => ({ ...finding, index: index + 1, id: `jev-${index + 1}` }));
 }
 
-export function findingsFromGlyphs(glyphs: GlyphBox[]): OverlayFinding[] {
-  return reviewFromGlyphs(glyphs).findings;
+function spreadCap(findings: OverlayFinding[], cap: number): OverlayFinding[] {
+  if (findings.length <= cap) {
+    return findings;
+  }
+  const head = Math.ceil(cap / 2);
+  const tail = cap - head;
+  return [...findings.slice(0, head), ...findings.slice(findings.length - tail)];
+}
+
+export function findingsFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): OverlayFinding[] {
+  return reviewFromGlyphs(glyphs, target).findings;
 }
 
 function clamp4(value: number): number {
   return Math.min(4, Math.max(0.4, value));
 }
 
-function verdictFor(dimensions: ScoreDimension[], findings: OverlayFinding[]): string {
+function verdictFor(dimensions: ScoreDimension[], findings: OverlayFinding[], target?: JobTarget): string {
+  const missingKeywords = findings.some((item) => item.id.includes("keyword") || /listing keywords/i.test(item.title));
   const missingMentor = findings.some((item) => item.severity === "missing" && /mentor/i.test(item.detail));
   const weakest = dimensions.reduce((left, right) => (left.score <= right.score ? left : right));
   const metrics = dimensions.find((item) => item.id === "metrics");
+  if (hasJobTarget(target) && missingKeywords) {
+    return `${jobTargetLabel(target)} is the lens. Missing listing keywords are the first cut.`;
+  }
   if (missingMentor) {
-    return "Metrics land. Mentorship never appears — this persona will notice.";
+    return hasJobTarget(target)
+      ? `Metrics land. Mentorship never appears — ${jobTargetLabel(target)} will notice.`
+      : "Metrics land. Mentorship never appears on this page.";
   }
   if (weakest.id === "conciseness") {
     return "The parser can read it. Several blocks will flatten on the way through.";
   }
   if ((metrics?.score ?? 0) >= 3) {
-    return "Numbers do the work. Tighten the lines that still sell a vibe.";
+    return hasJobTarget(target)
+      ? `Numbers do the work. Tighten the lines that still miss ${jobTargetLabel(target)}.`
+      : "Numbers do the work. Tighten the lines that still sell a vibe.";
   }
   return `${weakest.label} is the thin spot on this page.`;
 }
 
-export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFinding[]): StudioScore {
+export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFinding[], target?: JobTarget): StudioScore {
   const bullets = lines.filter((line) => line.text.length > 36);
   const pool = Math.max(1, bullets.length);
   const risks = findings.filter((item) => item.severity === "risk").length;
@@ -274,18 +379,29 @@ export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFindin
     { id: "metrics", label: "Metrics", score: metrics, max: 4 },
     { id: "ats", label: "ATS parse", score: ats, max: 4 },
   ];
-  const value = Math.round(
+  let value = Math.round(
     ((wording * 0.2 + conciseness * 0.15 + structure * 0.2 + metrics * 0.25 + ats * 0.2) / 4) * 100,
   );
-  const analysis = analyzeDocument(lines);
+  const analysis = analyzeDocument(lines, target);
+  if (hasJobTarget(target) && analysis.expectedSkills.length > 0) {
+    const hit = analysis.expectedSkills.length - analysis.missingExpected.length;
+    const fit = hit / analysis.expectedSkills.length;
+    value = Math.max(0, Math.min(100, Math.round(value * 0.75 + fit * 25)));
+  }
   const validity = Math.round(((structure + ats) / 8) * 100);
   const evidenced = bullets.filter((line) => hasMetric(line.text) || /kafka|\bgo\b|postgres|redis|aws/i.test(line.text)).length;
   const evidence = Math.round((evidenced / pool) * 100);
-  const suggestions = suggestionsFromAnalysis(lines, findings);
+  const suggestions = suggestionsFromAnalysis(lines, findings, target);
   const rewrite = overallRewrite(suggestions);
+  const targeted = hasJobTarget(target);
+  const targetFit = targeted
+    ? analysis.expectedSkills.length > 0
+      ? `${analysis.expectedSkills.length - analysis.missingExpected.length} of ${analysis.expectedSkills.length} listing skills on the page`
+      : "Rated against this listing — no closed-set skills extracted"
+    : undefined;
   return {
     value,
-    verdict: verdictFor(dimensions, findings),
+    verdict: verdictFor(dimensions, findings, target),
     noteCount: findings.length,
     validity,
     evidence,
@@ -298,6 +414,8 @@ export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFindin
     weak: weakLine(analysis, findings),
     dimensions,
     suggestions,
+    targetLabel: targeted ? jobTargetLabel(target) : undefined,
+    targetFit,
   };
 }
 
@@ -305,7 +423,7 @@ export function scoreFromFindings(findings: OverlayFinding[]): StudioScore {
   return scoreFromDocument([], findings);
 }
 
-export function reviewFromGlyphs(glyphs: GlyphBox[]): { findings: OverlayFinding[]; score: StudioScore } {
+export function reviewFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): { findings: OverlayFinding[]; score: StudioScore } {
   const lines = linesFromGlyphs(glyphs);
   const whole = lines.map((line) => line.text).join("\n");
   const usedY = new Set<string>();
@@ -314,14 +432,11 @@ export function reviewFromGlyphs(glyphs: GlyphBox[]): { findings: OverlayFinding
   const ordered = [...lines].sort((left, right) => left.page - right.page || left.box.y - right.box.y);
 
   for (const line of ordered) {
-    if (findings.length >= FINDING_CAP) {
-      break;
-    }
     const key = `${line.page}:${line.box.y.toFixed(1)}`;
     if (usedY.has(key)) {
       continue;
     }
-    const judged = judge(line, whole);
+    const judged = judge(line, whole, target);
     if (!judged?.box) {
       continue;
     }
@@ -334,22 +449,17 @@ export function reviewFromGlyphs(glyphs: GlyphBox[]): { findings: OverlayFinding
     });
   }
 
-  if (findings.length < FINDING_CAP) {
-    for (const extra of personaGaps(lines, whole, usedY)) {
-      if (findings.length >= FINDING_CAP) {
-        break;
-      }
-      const already = findings.some((item) => /mentor/i.test(`${item.title} ${item.detail}`));
-      if (already) {
-        continue;
-      }
-      findings.push(extra);
+  for (const extra of personaGaps(lines, whole, usedY, target)) {
+    const isMentor = /mentor/i.test(`${extra.title} ${extra.detail}`);
+    if (isMentor && findings.some((item) => /mentor/i.test(`${item.title} ${item.detail}`))) {
+      continue;
     }
+    findings.push(extra);
   }
 
-  const numbered = numberFindings(findings);
+  const numbered = numberFindings(spreadCap(findings, FINDING_CAP));
   return {
     findings: numbered,
-    score: scoreFromDocument(lines, numbered),
+    score: scoreFromDocument(lines, numbered, target),
   };
 }

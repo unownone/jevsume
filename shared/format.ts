@@ -32,6 +32,13 @@ export function formatReviewCost(usd: number): string {
   return `$${value.replace(/0+$/, "").replace(/\.$/, "")}`;
 }
 
+export function formatTokenCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0";
+  }
+  return Math.round(value).toLocaleString("en-US");
+}
+
 export function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) {
     return "0 ms";

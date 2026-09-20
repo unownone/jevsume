@@ -30,7 +30,11 @@ export function SuggestionList({ cards, selected, onToggle, onOpen }: Suggestion
                 />
                 <span>
                   <strong>{card.title}</strong>
-                  <em>{rewriteKindLabel(card.kind)}</em>
+                  {card.recoverPoints ? (
+                    <em className="recover">Recover {card.recoverPoints}</em>
+                  ) : (
+                    <em>{rewriteKindLabel(card.kind)}</em>
+                  )}
                   <span className="suggestion-detail">{card.detail}</span>
                   {findingId && onOpen ? (
                     <button

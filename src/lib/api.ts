@@ -1,4 +1,9 @@
 import {
+  hasJobTarget,
+  trimJobTarget,
+  type JobTarget,
+} from "../../shared/job-target.ts";
+import {
   isRateLimitErrorBody,
   type RateLimitCheckpoint,
   type RateLimitErrorBody,
@@ -22,6 +27,8 @@ export type ReviewResponse = {
     breakdown: { key: string; score01: number; weight: number }[];
     confidence: number | null;
   };
+  validity?: number;
+  evidence?: number;
   dimensions: {
     id: string;
     label: string;
@@ -55,10 +62,47 @@ export type ReviewResponse = {
     noul: number;
     verdict: string;
   }[];
-  suggestions: { id: string; text: string; span?: TextSpan; findingId?: string }[];
+  suggestions: { id: string; text: string; span?: TextSpan; findingId?: string; sectionId?: string; recoverPoints?: number }[];
   resumeText: string;
   persona: { id: string; title: string; isDefault: boolean };
-  telemetry: { serverMs: number; inputTokens: number; costUsd: number };
+  jobTarget?: {
+    jobText?: string;
+    jobUrl?: string;
+    jobTitle?: string;
+    company?: string;
+  };
+  telemetry: {
+    serverMs: number;
+    inputTokens: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    costUsd: number;
+    requestCount?: number;
+  };
+  hierarchy?: Array<{
+    id: string;
+    kind: string;
+    title: string;
+    level: 1 | 2;
+    parentId: string | null;
+    text: string;
+    start: number;
+    end: number;
+    line: number;
+    weight: number | null;
+    score01: number | null;
+    contribution: number | null;
+    status: "pending" | "scored";
+    dimensions: {
+      id: string;
+      label: string;
+      score: number;
+      max: number;
+      weight01: number;
+      recoverPoints: number;
+    }[];
+    children: ReviewResponse["hierarchy"];
+  }>;
 };
 
 export type JobPersonaItem = {
@@ -145,16 +189,78 @@ export async function storeResume(text: string, source: string): Promise<void> {
   });
 }
 
+export function reviewRequestBody(
+  resumeText: string,
+  personaId?: string,
+  jobTarget?: JobTarget,
+): Record<string, string | undefined> {
+  const target = hasJobTarget(jobTarget) ? trimJobTarget(jobTarget) : undefined;
+  return {
+    resumeText,
+    personaId,
+    jobText: target?.jobText,
+    jobUrl: target?.jobUrl,
+    jobTitle: target?.jobTitle,
+    company: target?.company,
+  };
+}
+
 export async function runReview(
   resumeText: string,
-  personaId: string,
+  personaId?: string,
+  jobTarget?: JobTarget,
 ): Promise<ReviewResponse> {
   const response = await fetch("/api/reviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resumeText, personaId }),
+    body: JSON.stringify(reviewRequestBody(resumeText, personaId, jobTarget)),
   });
   return parseJson(response);
+}
+
+export async function* streamReview(
+  resumeText: string,
+  personaId?: string,
+  jobTarget?: JobTarget,
+): AsyncGenerator<Record<string, unknown>> {
+  const response = await fetch("/api/reviews/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(reviewRequestBody(resumeText, personaId, jobTarget)),
+  });
+  if (!response.ok || !response.body) {
+    const body: unknown = await response.json().catch(() => null);
+    if (isRateLimitErrorBody(body)) {
+      throw new RateLimitError(body);
+    }
+    const message =
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      typeof body.error === "string"
+        ? body.error
+        : `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = done ? "" : (lines.pop() ?? "");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+      yield JSON.parse(trimmed) as Record<string, unknown>;
+    }
+    if (done) {
+      break;
+    }
+  }
 }
 
 export async function fetchVisitorCount(): Promise<number> {

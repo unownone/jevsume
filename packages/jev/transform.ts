@@ -98,10 +98,30 @@ function dimensionList(
   });
 }
 
+function pairFromAnswers(answers: Record<string, Answer>): { validity: number; evidence: number } {
+  const meanPct = (ids: string[]) => {
+    const values = ids.flatMap((id) => {
+      const score = asScore(answers[id]);
+      return score ? [score.score / 4] : [];
+    });
+    if (values.length === 0) {
+      return 0;
+    }
+    return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100);
+  };
+  return {
+    validity: meanPct(["structure", "ats_parse"]),
+    evidence: meanPct(["metrics", "evidence_strength", "keyword_alignment"]),
+  };
+}
+
 const EMPTY_TELEMETRY: ReviewTelemetry = {
   serverMs: 0,
   inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
   costUsd: 0,
+  requestCount: 0,
 };
 
 function suggestion(
@@ -309,10 +329,13 @@ function annotateSections(
 
 function coerceSectionKind(choice: string, fallback: SectionKind): SectionKind {
   switch (choice) {
+    case "header":
     case "summary":
     case "experience":
+    case "job":
     case "education":
     case "skills":
+    case "accolades":
     case "projects":
     case "other":
       return choice;
@@ -450,6 +473,8 @@ export function transformGeneralReview(input: {
   return {
     mode: "general",
     jevScore,
+    validity: pairFromAnswers(answers).validity,
+    evidence: pairFromAnswers(answers).evidence,
     dimensions,
     sections,
     findings,
@@ -463,6 +488,7 @@ export function transformGeneralReview(input: {
       isDefault: true,
     },
     telemetry: input.telemetry ?? EMPTY_TELEMETRY,
+    hierarchy: [],
   };
 }
 
@@ -473,6 +499,7 @@ export function transformJobReview(input: {
   provider: ProviderId;
   resumeText?: string;
   telemetry?: ReviewTelemetry;
+  jobTarget?: ReviewResponse["jobTarget"];
 }): ReviewResponse {
   const { answers, model } = input.result;
   const scores = pickScores(answers, Object.keys(JOB_SCORE_WEIGHTS));
@@ -560,6 +587,8 @@ export function transformJobReview(input: {
   return {
     mode: "job",
     jevScore,
+    validity: pairFromAnswers(answers).validity,
+    evidence: pairFromAnswers(answers).evidence,
     dimensions: dimensionList(answers, [
       "fit_overall",
       "keyword_alignment",
@@ -578,7 +607,9 @@ export function transformJobReview(input: {
       title: input.persona.title,
       isDefault: false,
     },
+    jobTarget: input.jobTarget,
     telemetry: input.telemetry ?? EMPTY_TELEMETRY,
+    hierarchy: [],
   };
 }
 

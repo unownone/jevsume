@@ -32,14 +32,23 @@ export async function extractFromFile(file: File): Promise<ExtractResult> {
 
 async function extractPdf(data: ArrayBuffer): Promise<string> {
   const pdf = await pdfjs.getDocument({ data }).promise;
-  const pages: string[] = [];
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const line = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-    pages.push(line);
-  }
-  return pages.join("\n");
+    const pages: string[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const chunks: string[] = [];
+      for (const item of content.items) {
+        if (!("str" in item)) {
+          continue;
+        }
+        chunks.push(item.str);
+        if ("hasEOL" in item && item.hasEOL) {
+          chunks.push("\n");
+        } else {
+          chunks.push(" ");
+        }
+      }
+      pages.push(chunks.join("").replace(/[ \t]+\n/g, "\n").replace(/[ \t]+/g, " ").trim());
+    }
+    return pages.filter(Boolean).join("\n");
 }

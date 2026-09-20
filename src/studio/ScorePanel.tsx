@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { formatJevScore, scoreTone } from "../../shared/format.ts";
+import { formatJevScore, formatReviewCost, formatTokenCount, scoreTone } from "../../shared/format.ts";
 import { SuggestionList } from "./SuggestionList.tsx";
 import type { StudioScore } from "./types.ts";
 
@@ -43,18 +43,61 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
         <div>
           <h2>JevScore</h2>
           <p>{score.verdict}</p>
+          {score.targetLabel ? (
+            <p className="score-target">
+              Rated against {score.targetLabel}
+              {score.targetFit ? ` · ${score.targetFit}` : ""}
+            </p>
+          ) : (
+            <p className="score-target is-general">General review — no listing attached</p>
+          )}
         </div>
       </div>
       <div className="score-pair">
         <div>
-          <strong>{score.validity}</strong>
+          <strong>{formatJevScore(score.validity)}</strong>
           <span>Validity</span>
         </div>
         <div>
-          <strong>{score.evidence}</strong>
+          <strong>{formatJevScore(score.evidence)}</strong>
           <span>Evidence</span>
         </div>
       </div>
+      {score.telemetry ? (
+        <p className="score-cost" aria-label="Jev token cost">
+          This review burned {formatTokenCount(score.telemetry.totalTokens)} tokens (
+          {formatTokenCount(score.telemetry.inputTokens)} in / {formatTokenCount(score.telemetry.outputTokens)} out) ·{" "}
+          {formatReviewCost(score.telemetry.costUsd)}
+          {score.telemetry.requestCount > 1
+            ? ` · ${score.telemetry.requestCount} Jev requests`
+            : " · 1 Jev request"}
+        </p>
+      ) : null}
+      {score.hierarchy && score.hierarchy.length > 0 ? (
+        <ul className="score-tree">
+          {score.hierarchy.map((node) => (
+            <li key={node.id} className={node.status}>
+              <span>
+                {node.title}
+                {node.weight !== null ? ` · ${node.weight}` : ""}
+              </span>
+              <strong>{node.status === "scored" ? Math.round(node.contribution ?? 0) : "…"}</strong>
+              {node.children.length > 0 ? (
+                <ul>
+                  {node.children.map((child) => (
+                    <li key={child.id} className={child.status}>
+                      <span>{child.title}</span>
+                      <strong>
+                        {child.status === "scored" ? Math.round(child.contribution ?? 0) : "…"}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <dl className="judge-lines">
         <div>
           <dt>Leadership</dt>
@@ -79,11 +122,14 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
             <label>
               <span>{dimension.label}</span>
               <span>
-                {dimension.score.toFixed(1)} / {dimension.max}
+                {dimension.max > 4 ? Math.round(dimension.score) : dimension.score.toFixed(1)} / {dimension.max}
               </span>
             </label>
             <div className="track">
-              <div className="fill" style={{ "--p": dimension.score / dimension.max } as CSSProperties} />
+              <div
+                className="fill"
+                style={{ "--p": dimension.max > 0 ? dimension.score / dimension.max : 0 } as CSSProperties}
+              />
             </div>
           </div>
         ))}

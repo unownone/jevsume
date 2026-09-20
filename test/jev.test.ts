@@ -342,6 +342,8 @@ describe("transformers", () => {
     expect(review.requirements?.[0]?.verdict).toBe("works");
     expect(review.findings[0]?.severity).toBe("works");
     expect(review.jevScore.value).toBeGreaterThan(50);
+    expect(review.validity).toBeGreaterThan(0);
+    expect(review.evidence).toBeGreaterThan(0);
   });
 });
 

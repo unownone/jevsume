@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { OverlayFinding, PageBox } from "./types.ts";
 
+export type SectionBand = {
+  id: string;
+  title: string;
+  status: "pending" | "scored";
+  box: PageBox;
+};
+
 type PageOverlayProps = {
   page: number;
   findings: OverlayFinding[];
+  sections?: SectionBand[];
   activeId: string | null;
   hoveredId: string | null;
   drawMode: boolean;
@@ -30,6 +38,7 @@ function localPercent(event: ReactPointerEvent<SVGSVGElement>): { x: number; y: 
 export function PageOverlay({
   page,
   findings,
+  sections = [],
   activeId,
   hoveredId,
   drawMode,
@@ -40,6 +49,7 @@ export function PageOverlay({
   const [draft, setDraft] = useState<Draft | null>(null);
   const origin = useRef<{ x: number; y: number } | null>(null);
   const pageFindings = findings.filter((finding) => finding.box?.page === page && finding.box);
+  const pageSections = sections.filter((section) => section.box.page === page);
 
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (!drawMode || event.button !== 0) {
@@ -83,6 +93,20 @@ export function PageOverlay({
 
   return (
     <div className={`page-overlay${drawMode ? " is-draw" : ""}`}>
+      {pageSections.map((section) => (
+        <div
+          key={section.id}
+          className={`section-band ${section.status}`}
+          style={{
+            left: `${section.box.x}%`,
+            top: `${section.box.y}%`,
+            width: `${section.box.w}%`,
+            height: `${Math.max(section.box.h, 3)}%`,
+          }}
+        >
+          <span>{section.title}</span>
+        </div>
+      ))}
       {pageFindings.map((finding, order) => {
         const box = finding.box;
         if (!box) {

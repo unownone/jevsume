@@ -1,4 +1,4 @@
-import type { GlyphBox, PageBox } from "./types.ts";
+import type { GlyphBox, LedgerRun, PageBox } from "./types.ts";
 
 export function unionBoxes(boxes: PageBox[]): PageBox | null {
   if (boxes.length === 0) {
@@ -64,33 +64,58 @@ export function clusterLines(items: GlyphBox[]): GlyphBox[][] {
   return lines;
 }
 
-export function boxForNeedle(glyphs: GlyphBox[], needle: string): PageBox | null {
+export type NeedleOptions = {
+  occurrence?: "first" | "last";
+  minY?: number;
+  maxY?: number;
+};
+
+function haystackHit(haystack: string, target: string, occurrence: "first" | "last"): number {
+  if (occurrence === "last") {
+    return haystack.lastIndexOf(target);
+  }
+  return haystack.indexOf(target);
+}
+
+export function boxForNeedle(glyphs: GlyphBox[], needle: string, options: NeedleOptions = {}): PageBox | null {
   const target = needle.toLowerCase().replace(/\s+/g, " ").trim();
   if (!target) {
     return null;
   }
+  const occurrence = options.occurrence ?? "first";
   const pages = new Map<number, GlyphBox[]>();
   for (const glyph of glyphs) {
+    if (options.minY !== undefined && glyph.y < options.minY) {
+      continue;
+    }
+    if (options.maxY !== undefined && glyph.y > options.maxY) {
+      continue;
+    }
     const list = pages.get(glyph.page) ?? [];
     list.push(glyph);
     pages.set(glyph.page, list);
   }
-  for (const [, items] of pages) {
-    const parts = items.map((item) => item.str.replace(/\s+/g, " ").trim());
+  const pageEntries = [...pages.entries()].sort((left, right) => left[0] - right[0]);
+  if (occurrence === "last") {
+    pageEntries.reverse();
+  }
+  for (const [, items] of pageEntries) {
+    const visual = [...items].sort((left, right) => left.y - right.y || left.x - right.x);
+    const parts = visual.map((item) => item.str.replace(/\s+/g, " ").trim());
     const haystack = parts.join(" ").toLowerCase();
-    const startAt = haystack.indexOf(target);
+    const startAt = haystackHit(haystack, target, occurrence);
     if (startAt === -1) {
       continue;
     }
     const endAt = startAt + target.length;
     const covered: GlyphBox[] = [];
     let cursor = 0;
-    for (let index = 0; index < items.length; index += 1) {
+    for (let index = 0; index < visual.length; index += 1) {
       const length = parts[index]?.length ?? 0;
       const start = cursor;
       const end = cursor + length;
       if (end > startAt && start < endAt) {
-        const item = items[index];
+        const item = visual[index];
         if (item) {
           covered.push(item);
         }
@@ -105,6 +130,23 @@ export function boxForNeedle(glyphs: GlyphBox[], needle: string): PageBox | null
     }
   }
   return null;
+}
+
+export function boxesForLedgerRange(ledger: LedgerRun[], start: number, end: number): PageBox[] {
+  if (!(end > start)) {
+    return [];
+  }
+  const hits: PageBox[] = [];
+  for (const run of ledger) {
+    if (run.flatEnd <= start || run.flatStart >= end) {
+      continue;
+    }
+    if (!run.box) {
+      continue;
+    }
+    hits.push(run.box);
+  }
+  return hits;
 }
 
 export function padBox(box: PageBox, dx = 0.45, dy = 0.22): PageBox {

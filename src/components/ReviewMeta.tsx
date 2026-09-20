@@ -4,10 +4,21 @@ type ReviewMetaProps = {
   clientMs: number;
   serverMs: number;
   inputTokens: number;
+  outputTokens?: number;
+  totalTokens?: number;
   costUsd: number;
+  requestCount?: number;
 };
 
-export function ReviewMeta({ clientMs, serverMs, inputTokens, costUsd }: ReviewMetaProps) {
+export function ReviewMeta({
+  clientMs,
+  serverMs,
+  inputTokens,
+  outputTokens,
+  totalTokens,
+  costUsd,
+  requestCount,
+}: ReviewMetaProps) {
   return (
     <footer className="review-meta" aria-label="Review timing and cost">
       <span>
@@ -19,6 +30,21 @@ export function ReviewMeta({ clientMs, serverMs, inputTokens, costUsd }: ReviewM
       <span>
         Input tokens <strong>{Math.round(inputTokens).toLocaleString("en-US")}</strong>
       </span>
+      {outputTokens !== undefined ? (
+        <span>
+          Output tokens <strong>{Math.round(outputTokens).toLocaleString("en-US")}</strong>
+        </span>
+      ) : null}
+      {totalTokens !== undefined ? (
+        <span>
+          Total tokens <strong>{Math.round(totalTokens).toLocaleString("en-US")}</strong>
+        </span>
+      ) : null}
+      {requestCount !== undefined ? (
+        <span>
+          Jev requests <strong>{requestCount}</strong>
+        </span>
+      ) : null}
       <span>
         Est. cost <strong>{formatReviewCost(costUsd)}</strong>
       </span>

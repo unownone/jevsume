@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatJevScore, scoreTone } from "../shared/format.ts";
+import { formatJevScore, formatReviewCost, formatTokenCount, scoreTone } from "../shared/format.ts";
 import { formatClockTime, formatRateLimitCopy, secondsUntil } from "../shared/rate-limit.ts";
 
 describe("formatJevScore", () => {
@@ -7,6 +7,16 @@ describe("formatJevScore", () => {
     expect(formatJevScore(7)).toBe("07");
     expect(formatJevScore(84)).toBe("84");
     expect(formatJevScore(100)).toBe("100");
+  });
+
+  it("formats token counts with grouping", () => {
+    expect(formatTokenCount(0)).toBe("0");
+    expect(formatTokenCount(12840)).toBe("12,840");
+  });
+
+  it("formats estimated Jev input cost", () => {
+    expect(formatReviewCost(0)).toBe("$0");
+    expect(formatReviewCost(0.042)).toBe("$0.042");
   });
 
   it("maps bands to tones for the orb", () => {

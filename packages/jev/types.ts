@@ -76,12 +76,52 @@ export type RequirementVerdict = "works" | "partial" | "missing" | "contradicts"
 export type FindingSeverity = "works" | "partial" | "missing" | "risk";
 
 export type SectionKind =
+  | "header"
   | "summary"
   | "experience"
+  | "job"
   | "education"
   | "skills"
+  | "accolades"
   | "projects"
   | "other";
+
+export type HierarchyKind = SectionKind;
+
+export type RubricScore = {
+  id: string;
+  label: string;
+  score: number;
+  max: number;
+  weight01: number;
+  recoverPoints: number;
+};
+
+export type HierarchyNode = {
+  id: string;
+  kind: HierarchyKind;
+  title: string;
+  level: 1 | 2;
+  parentId: string | null;
+  text: string;
+  start: number;
+  end: number;
+  line: number;
+  weight: number | null;
+  score01: number | null;
+  contribution: number | null;
+  status: "pending" | "scored";
+  dimensions: RubricScore[];
+  children: HierarchyNode[];
+};
+
+export type UsageTotals = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  requestCount: number;
+};
 
 export type ResumeFragment = {
   id: string;
@@ -167,6 +207,8 @@ export type ReviewSuggestion = {
   text: string;
   span?: TextSpan;
   findingId?: string;
+  sectionId?: string;
+  recoverPoints?: number;
 };
 
 export type RequirementReview = {
@@ -183,17 +225,32 @@ export type ReviewPersona = {
   isDefault: boolean;
 };
 
+export type ReviewJobTarget = {
+  jobText?: string;
+  jobUrl?: string;
+  jobTitle?: string;
+  company?: string;
+};
+
 export type ReviewTelemetry = {
   serverMs: number;
   inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
   costUsd: number;
+  requestCount: number;
 };
 
 export type ReviewResponse = {
   mode: "general" | "job";
   jevScore: JevScore;
+  /** Parser/ATS readability 0–100. */
+  validity: number;
+  /** Numbered or named claims 0–100. */
+  evidence: number;
   dimensions: DimensionScore[];
   sections: ResumeSection[];
+  hierarchy: HierarchyNode[];
   findings: ReviewFinding[];
   requirements?: RequirementReview[];
   suggestions: ReviewSuggestion[];
@@ -201,8 +258,40 @@ export type ReviewResponse = {
   model?: string;
   resumeText: string;
   persona: ReviewPersona;
+  jobTarget?: ReviewJobTarget;
   telemetry: ReviewTelemetry;
 };
+
+export type ProctorEvent =
+  | {
+      type: "hierarchy";
+      roots: HierarchyNode[];
+      telemetry: ReviewTelemetry;
+    }
+  | {
+      type: "weights";
+      roots: HierarchyNode[];
+      telemetry: ReviewTelemetry;
+    }
+  | {
+      type: "section";
+      node: HierarchyNode;
+      overall: number;
+      roots: HierarchyNode[];
+      suggestions: ReviewSuggestion[];
+      findings: ReviewFinding[];
+      validity: number;
+      evidence: number;
+      telemetry: ReviewTelemetry;
+    }
+  | {
+      type: "complete";
+      review: ReviewResponse & { id: string; resumeId: string; personaId?: string };
+    }
+  | {
+      type: "error";
+      message: string;
+    };
 
 export function assertNever(_value: never, message: string): never {
   throw new Error(message);
