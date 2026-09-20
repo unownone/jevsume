@@ -532,6 +532,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-store",
+        "Content-Encoding": "identity",
+        "X-Accel-Buffering": "no",
       },
     });
   });

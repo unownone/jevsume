@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { formatJevScore } from "../shared/format.ts";
 import { boxForNeedle, boxesForLedgerRange, clusterLines, isPlausibleBox, padBox, unionBoxes } from "../src/studio/boxes.ts";
-import { findingsFromGlyphs, linesFromGlyphs, reviewFromGlyphs, scoreFromFindings } from "../src/studio/findings.ts";
-import type { GlyphBox } from "../src/studio/types.ts";
+import {
+  decorateStudioScore,
+  fillWaitingJudgeLines,
+  findingsFromGlyphs,
+  linesFromGlyphs,
+  reviewFromGlyphs,
+  scoreFromFindings,
+} from "../src/studio/findings.ts";
+import type { GlyphBox, StudioScore } from "../src/studio/types.ts";
 
 const glyphs: GlyphBox[] = [
   { page: 1, str: "Built", x: 10, y: 20, w: 8, h: 2 },
@@ -311,5 +318,308 @@ describe("document analysis", () => {
     expect(score.jobsLine).not.toMatch(/cut some/);
     expect(score.skillsLine).toMatch(/kafka/i);
     expect(score.skillsLine).not.toMatch(/missing kafka/);
+  });
+
+  it("fills live-score waiting copy from the page instead of leaving dashes", () => {
+    const glyphs = denseResume();
+    const { findings } = reviewFromGlyphs(glyphs);
+    const live: StudioScore = {
+      value: 72,
+      verdict: "Jev is scoring each section.",
+      noteCount: 21,
+      validity: 40,
+      evidence: 55,
+      leadershipLine: "Waiting on section scores.",
+      jobsLine: "Roles appear as they score.",
+      skillsLine: "Skills score after the dump is judged.",
+      rewriteLine: "Suggestions arrive with recover points.",
+      rewrite: "none",
+      strong: "—",
+      weak: "—",
+      dimensions: [
+        { id: "header", label: "Header", score: 4, max: 8 },
+        { id: "skills", label: "Skills", score: 17, max: 21 },
+        { id: "experience", label: "Experience", score: 46, max: 60 },
+        { id: "education", label: "Education", score: 10, max: 11 },
+      ],
+      suggestions: [],
+    };
+    const next = decorateStudioScore(live, linesFromGlyphs(glyphs), findings);
+    expect(next.leadershipLine).not.toBe("Waiting on section scores.");
+    expect(next.jobsLine).not.toBe("Roles appear as they score.");
+    expect(next.skillsLine).not.toBe("Skills score after the dump is judged.");
+    expect(next.rewriteLine).not.toBe("Suggestions arrive with recover points.");
+    expect(next.strong).not.toBe("—");
+    expect(next.weak).not.toBe("—");
+    expect(next.dimensions).toEqual(live.dimensions);
+    expect(next.value).toBe(72);
+    expect(next.noteCount).toBe(21);
+  });
+
+  it("fills waiting judge lines from scored hierarchy even when glyph lines are empty", () => {
+    const live: StudioScore = {
+      value: 61,
+      verdict: "Jev is scoring each section.",
+      noteCount: 12,
+      validity: 40,
+      evidence: 55,
+      leadershipLine: "Waiting on section scores.",
+      jobsLine: "Roles appear as they score.",
+      skillsLine: "Skills score after the dump is judged.",
+      rewriteLine: "Suggestions arrive with recover points.",
+      rewrite: "none",
+      strong: "—",
+      weak: "—",
+      dimensions: [],
+      suggestions: [
+        {
+          id: "s1",
+          kind: "add-metric",
+          title: "Raise dump vs evidence",
+          detail: "Recover 6",
+          recoverPoints: 6,
+          box: null,
+        },
+      ],
+      hierarchy: [
+        {
+          id: "skills",
+          title: "Skills",
+          kind: "skills",
+          weight: 18,
+          score01: 0.5,
+          contribution: 9,
+          status: "scored",
+          dimensions: [
+            { id: "dump", label: "Dump vs evidence", score: 2.1, max: 4 },
+            { id: "proven", label: "Proven in work", score: 2.4, max: 4 },
+          ],
+          children: [],
+        },
+        {
+          id: "experience",
+          title: "Experience",
+          kind: "experience",
+          weight: 53,
+          score01: 0.6,
+          contribution: 32,
+          status: "pending",
+          children: [
+            {
+              id: "quillbot",
+              title: "QuillBot",
+              kind: "job",
+              weight: 12,
+              score01: 0.67,
+              contribution: 8,
+              status: "scored",
+              dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const next = decorateStudioScore(live, [], []);
+    expect(next.leadershipLine).toMatch(/Action verbs/i);
+    expect(next.jobsLine).toMatch(/QuillBot/);
+    expect(next.jobsLine).not.toBe("Roles appear as they score.");
+    expect(next.skillsLine).toMatch(/Dump vs evidence|Proven in work/i);
+    expect(next.rewriteLine).toMatch(/recover 6/i);
+  });
+
+  it("keeps adding scored roles instead of freezing after the first job", () => {
+    const first = decorateStudioScore(
+      {
+        value: 20,
+        verdict: "Jev is scoring each section.",
+        noteCount: 2,
+        validity: 10,
+        evidence: 10,
+        leadershipLine: "Waiting on section scores.",
+        jobsLine: "Roles appear as they score.",
+        skillsLine: "Skills score after the dump is judged.",
+        rewriteLine: "Suggestions arrive with recover points.",
+        rewrite: "none",
+        strong: "—",
+        weak: "—",
+        dimensions: [],
+        suggestions: [],
+        hierarchy: [
+          {
+            id: "experience",
+            title: "Experience",
+            kind: "experience",
+            weight: 53,
+            score01: null,
+            contribution: null,
+            status: "pending",
+            children: [
+              {
+                id: "quillbot",
+                title: "QuillBot",
+                kind: "job",
+                weight: 12,
+                score01: 0.67,
+                contribution: 8,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+                children: [],
+              },
+              {
+                id: "mable",
+                title: "Mable GmbH",
+                kind: "job",
+                weight: 10,
+                score01: null,
+                contribution: null,
+                status: "pending",
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+    );
+    expect(first.jobsLine).toBe("QuillBot 8/12");
+
+    const second = decorateStudioScore(
+      {
+        ...first,
+        hierarchy: [
+          {
+            id: "experience",
+            title: "Experience",
+            kind: "experience",
+            weight: 53,
+            score01: 0.6,
+            contribution: 32,
+            status: "pending",
+            children: [
+              {
+                id: "quillbot",
+                title: "QuillBot",
+                kind: "job",
+                weight: 12,
+                score01: 0.67,
+                contribution: 8,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+                children: [],
+              },
+              {
+                id: "mable",
+                title: "Mable GmbH",
+                kind: "job",
+                weight: 10,
+                score01: 0.5,
+                contribution: 5,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 2.1, max: 4 }],
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+    );
+    expect(second.jobsLine).toMatch(/QuillBot 8\/12/);
+    expect(second.jobsLine).toMatch(/Mable GmbH 5\/10/);
+    expect(second.leadershipLine).toMatch(/2 scored roles/);
+  });
+
+  it("fills Strong/Weak and rounded rewrite points from the scored tree without glyphs", () => {
+    const live: StudioScore = {
+      value: 41,
+      verdict: "Jev is scoring each section.",
+      noteCount: 21,
+      validity: 40,
+      evidence: 55,
+      leadershipLine: "Waiting on section scores.",
+      jobsLine: "Roles appear as they score.",
+      skillsLine: "Skills score after the dump is judged.",
+      rewriteLine: "Suggestions arrive with recover points.",
+      rewrite: "none",
+      strong: "—",
+      weak: "—",
+      dimensions: [{ id: "header", label: "Header", score: 4, max: 8 }],
+      suggestions: [
+        {
+          id: "s1",
+          kind: "add-metric",
+          title: "Raise dump vs evidence",
+          detail: "Recover 1.3",
+          recoverPoints: 1.3,
+          box: null,
+        },
+        {
+          id: "s2",
+          kind: "add-metric",
+          title: "Raise proven in work",
+          detail: "Recover 2.4",
+          recoverPoints: 2.4,
+          box: null,
+        },
+        {
+          id: "s3",
+          kind: "add-metric",
+          title: "Raise contact completeness",
+          detail: "Recover 1.3",
+          recoverPoints: 36.79999999999999,
+          box: null,
+        },
+      ],
+      hierarchy: [
+        {
+          id: "header",
+          title: "Header",
+          kind: "header",
+          weight: 8,
+          score01: 0.5,
+          contribution: 4,
+          status: "scored",
+          dimensions: [
+            { id: "name", label: "Name parseable", score: 2.1, max: 4 },
+            { id: "contact", label: "Contact completeness", score: 3.8, max: 4 },
+          ],
+          children: [],
+        },
+        {
+          id: "experience",
+          title: "Experience",
+          kind: "experience",
+          weight: 53,
+          score01: null,
+          contribution: null,
+          status: "pending",
+          children: [
+            {
+              id: "quillbot",
+              title: "QuillBot",
+              kind: "other",
+              weight: 12,
+              score01: 0.67,
+              contribution: 8,
+              status: "scored",
+              dimensions: [{ id: "verbs", label: "Action verb quality", score: 3.2, max: 4 }],
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const next = fillWaitingJudgeLines(live);
+    expect(next.leadershipLine).toMatch(/Action verb/i);
+    expect(next.jobsLine).toMatch(/QuillBot 8\/12/);
+    expect(next.jobsLine).not.toBe("Roles appear as they score.");
+    expect(next.rewriteLine).toBe("3 suggestions · recover 40.5 points.");
+    expect(next.strong).toMatch(/Contact completeness/i);
+    expect(next.weak).toMatch(/Name parseable/i);
+    expect(next.strong).not.toBe("—");
+    expect(next.weak).not.toBe("—");
   });
 });

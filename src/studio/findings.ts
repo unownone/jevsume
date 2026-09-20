@@ -19,6 +19,7 @@ import {
   seniorityMismatch,
   type JobTarget,
 } from "../../shared/job-target.ts";
+import { formatPoints } from "../../shared/format.ts";
 import type { DocumentLine, GlyphBox, OverlayFinding, PageBox, ScoreDimension, Severity, StudioScore } from "./types.ts";
 
 const FINDING_CAP = 28;
@@ -421,6 +422,145 @@ export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFindin
 
 export function scoreFromFindings(findings: OverlayFinding[]): StudioScore {
   return scoreFromDocument([], findings);
+}
+
+const WAITING_LEADERSHIP = "Waiting on section scores.";
+const WAITING_JOBS = "Roles appear as they score.";
+const WAITING_SKILLS = "Skills score after the dump is judged.";
+const WAITING_REWRITE = "Suggestions arrive with recover points.";
+const WAITING_VERDICT = "Jev is scoring each section.";
+
+function walkScoreNodes(nodes: StudioScore["hierarchy"] | undefined): Array<{
+  node: NonNullable<StudioScore["hierarchy"]>[number];
+  parent: NonNullable<StudioScore["hierarchy"]>[number] | null;
+}> {
+  const out: Array<{
+    node: NonNullable<StudioScore["hierarchy"]>[number];
+    parent: NonNullable<StudioScore["hierarchy"]>[number] | null;
+  }> = [];
+  const visit = (
+    node: NonNullable<StudioScore["hierarchy"]>[number],
+    parent: NonNullable<StudioScore["hierarchy"]>[number] | null,
+  ) => {
+    out.push({ node, parent });
+    for (const child of node.children ?? []) {
+      visit(child, node);
+    }
+  };
+  for (const node of nodes ?? []) {
+    visit(node, null);
+  }
+  return out;
+}
+
+function isRoleNode(
+  node: NonNullable<StudioScore["hierarchy"]>[number],
+  parent: NonNullable<StudioScore["hierarchy"]>[number] | null,
+): boolean {
+  if (node.kind === "job") {
+    return true;
+  }
+  if (parent?.kind === "experience") {
+    return true;
+  }
+  return node.kind === "experience" && (node.children?.length ?? 0) === 0;
+}
+
+function isSkillsNode(node: NonNullable<StudioScore["hierarchy"]>[number]): boolean {
+  return node.kind === "skills" || /^skills$/i.test(node.title.trim());
+}
+
+function dimRatio(dim: { score: number; max: number }): number {
+  return dim.max > 0 ? dim.score / dim.max : 0;
+}
+
+export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
+  const walked = walkScoreNodes(score.hierarchy);
+  const nodes = walked.map((item) => item.node);
+  const scoredJobs = walked
+    .filter(({ node, parent }) => node.status === "scored" && isRoleNode(node, parent))
+    .map(({ node }) => node);
+  const skills = nodes.find((node) => isSkillsNode(node));
+  const verbDims = scoredJobs.flatMap((node) =>
+    (node.dimensions ?? []).filter((dim) => /verb/i.test(dim.label)),
+  );
+  const scoredDims = nodes.flatMap((node) => (node.status === "scored" ? (node.dimensions ?? []) : []));
+
+  let { leadershipLine, jobsLine, skillsLine, rewriteLine, strong, weak } = score;
+
+  if (verbDims.length > 0) {
+    const avg = verbDims.reduce((sum, dim) => sum + dim.score, 0) / verbDims.length;
+    const thin = verbDims.filter((dim) => dimRatio(dim) < 0.75).length;
+    leadershipLine = `Action verbs ${avg.toFixed(1)} / 4 across ${verbDims.length} scored role${
+      verbDims.length === 1 ? "" : "s"
+    }${thin > 0 ? ` · ${thin} still thin` : ""}.`;
+  } else if (scoredJobs.length > 0) {
+    leadershipLine = `${scoredJobs.length} scored role${scoredJobs.length === 1 ? "" : "s"}.`;
+  }
+
+  if (scoredJobs.length > 0) {
+    jobsLine = scoredJobs
+      .map((job) => `${job.title} ${Math.round(job.contribution ?? 0)}/${job.weight ?? 0}`)
+      .join(" · ");
+  }
+
+  if (skills?.status === "scored") {
+    const dims = skills.dimensions ?? [];
+    const dump = dims.find((dim) => /dump/i.test(dim.label));
+    const proven = dims.find((dim) => /proven/i.test(dim.label));
+    const bits = [`${Math.round(skills.contribution ?? 0)} / ${skills.weight ?? 0}`];
+    if (dump) {
+      bits.push(`${dump.label} ${dump.score.toFixed(1)}/${dump.max}`);
+    }
+    if (proven) {
+      bits.push(`${proven.label} ${proven.score.toFixed(1)}/${proven.max}`);
+    }
+    skillsLine = bits.join(" · ");
+  }
+
+  const recover = (score.suggestions ?? []).reduce((sum, card) => sum + (card.recoverPoints ?? 0), 0);
+  if (score.suggestions.length > 0) {
+    const recoverLabel = formatPoints(recover);
+    rewriteLine = `${score.suggestions.length} suggestion${score.suggestions.length === 1 ? "" : "s"} · recover ${recoverLabel} point${
+      recoverLabel === "1" ? "" : "s"
+    }.`;
+  }
+
+  if (scoredDims.length > 0) {
+    const best = scoredDims.reduce((lead, dim) => (dimRatio(dim) >= dimRatio(lead) ? dim : lead));
+    const worst = scoredDims.reduce((lead, dim) => (dimRatio(dim) <= dimRatio(lead) ? dim : lead));
+    strong = `${best.label}: ${best.score.toFixed(1)} / ${best.max}`;
+    weak = `${worst.label}: ${worst.score.toFixed(1)} / ${worst.max}`;
+  }
+
+  return { ...score, leadershipLine, jobsLine, skillsLine, rewriteLine, strong, weak };
+}
+
+export function decorateStudioScore(
+  score: StudioScore,
+  lines: DocumentLine[],
+  findings: OverlayFinding[],
+  target?: JobTarget,
+): StudioScore {
+  let next = fillWaitingJudgeLines(score);
+  if (lines.length === 0) {
+    return next;
+  }
+  const fromPage = scoreFromDocument(lines, findings, target);
+  const rewrite = next.suggestions.length > 0 ? overallRewrite(next.suggestions) : fromPage.rewrite;
+  return {
+    ...next,
+    verdict: next.verdict === WAITING_VERDICT ? fromPage.verdict : next.verdict,
+    leadershipLine:
+      next.leadershipLine === WAITING_LEADERSHIP ? fromPage.leadershipLine : next.leadershipLine,
+    jobsLine: next.jobsLine === WAITING_JOBS ? fromPage.jobsLine : next.jobsLine,
+    skillsLine: next.skillsLine === WAITING_SKILLS ? fromPage.skillsLine : next.skillsLine,
+    rewriteLine: next.rewriteLine === WAITING_REWRITE ? rewriteLine(rewrite) : next.rewriteLine,
+    rewrite,
+    strong: next.strong === "—" ? fromPage.strong : next.strong,
+    weak: next.weak === "—" ? fromPage.weak : next.weak,
+    targetFit: next.targetFit ?? fromPage.targetFit,
+  };
 }
 
 export function reviewFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): { findings: OverlayFinding[]; score: StudioScore } {
