@@ -51,7 +51,7 @@ Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` beca
 
 `wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), and a KV binding `VISITORS` for the visitor counter. Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
 
-Git deploys auto-provision the KV namespace for `VISITORS` because `id` is omitted, the same way D1 is provisioned. The unique count is a single KV key (`count`) plus per-visitor keys (`vid:<id>`). `GET /api/visitors` is cacheable (`Cache-Control` + `CDN-Cache-Control`); `POST /api/visitors` is `no-store` so uniqueness writes are not cached.
+`VISITORS` is bound to the existing `jevsume-visitors` KV namespace (id in `wrangler.jsonc`). Omitting `id` makes Workers Builds try to create a second namespace with that title and fail. The unique count is a single KV key (`count`) plus per-visitor keys (`vid:<id>`). `GET /api/visitors` is cacheable (`Cache-Control` + `CDN-Cache-Control`); `POST /api/visitors` is `no-store` so uniqueness writes are not cached.
 
 Lookup APIs (summaries on list, full prompt/input/output on get):
 

@@ -31,7 +31,8 @@
   ],
   "kv_namespaces": [
     {
-      "binding": "VISITORS"
+      "binding": "VISITORS",
+      "id": "0cc77268f61e4603ad63561901d0f38a"
     }
   ]
 }
