@@ -4,7 +4,12 @@ import {
   hasJobTarget,
   type JobTargetFields,
 } from "../../shared/job-target.ts";
-import { DEMO_JOB_LISTING } from "./demo.ts";
+import {
+  jobFieldsFromPreset,
+  matchPreset,
+  presetById,
+} from "../../shared/resume-presets.ts";
+import { PresetSelect } from "./PresetSelect.tsx";
 
 type JobComposerProps = {
   value: JobTargetFields;
@@ -32,9 +37,20 @@ export function JobComposer({ value, onChange, onClose, variant }: JobComposerPr
         <p>
           {targeted
             ? "Jev will score skills fit, missing keywords, role relevance, and seniority for this listing."
-            : "Paste the posting. Title, company, and URL are optional. Skip this and Jev still reviews the page."}
+            : "Pick a default role, or paste the posting. Title, company, and URL are optional. Skip this and Jev still reviews the page."}
         </p>
       </div>
+      <PresetSelect
+        id={variant === "plate" ? "job-preset-plate" : "job-preset-pop"}
+        value={matchPreset(value)?.id ?? ""}
+        allowEmpty
+        emptyLabel="Paste your own listing"
+        label="Default role"
+        onChange={(id) => {
+          const preset = presetById(id);
+          onChange(preset ? jobFieldsFromPreset(preset) : { ...EMPTY_JOB_TARGET });
+        }}
+      />
       <label className="job-field">
         <span>Job listing</span>
         <textarea
@@ -80,21 +96,20 @@ export function JobComposer({ value, onChange, onClose, variant }: JobComposerPr
           inputMode="url"
         />
       </label>
-      <div className="job-actions">
-        <button className="ghost tight" type="button" onClick={() => onChange({ ...EMPTY_JOB_TARGET, ...DEMO_JOB_LISTING })}>
-          Load sample
-        </button>
-        {targeted ? (
-          <button className="ghost tight" type="button" onClick={() => onChange({ ...EMPTY_JOB_TARGET })}>
-            Clear
-          </button>
-        ) : null}
-        {onClose ? (
-          <button className="primary tight" type="submit">
-            {targeted ? "Use this job" : "Skip for now"}
-          </button>
-        ) : null}
-      </div>
+      {targeted || onClose ? (
+        <div className="job-actions">
+          {targeted ? (
+            <button className="ghost tight" type="button" onClick={() => onChange({ ...EMPTY_JOB_TARGET })}>
+              Clear
+            </button>
+          ) : null}
+          {onClose ? (
+            <button className="primary tight" type="submit">
+              {targeted ? "Use this job" : "Skip for now"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </form>
   );
 }

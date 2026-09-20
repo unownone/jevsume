@@ -1,24 +1,12 @@
+import { DEFAULT_PRESET, jobFieldsFromPreset } from "../../shared/resume-presets.ts";
 import type { OverlayFinding } from "./types.ts";
 
 export const DEMO_PERSONA = {
-  title: "Staff Backend Engineer",
-  summary: "Event-driven services in Go, Kafka in production, and someone who sets direction for seniors.",
+  title: DEFAULT_PRESET.title,
+  summary: DEFAULT_PRESET.blurb,
 };
 
-export const DEMO_JOB_LISTING = {
-  jobTitle: "Staff Backend Engineer",
-  company: "Acme",
-  jobUrl: "",
-  jobText: `Staff Backend Engineer
-Acme is hiring someone who already owns event-driven services.
-
-Requirements
-- 5+ years building event-driven services in Go
-- Production Kafka or equivalent streaming experience
-- Mentors senior engineers and sets technical direction
-- Comfortable with Terraform and AWS
-`,
-};
+export const DEMO_JOB_LISTING = jobFieldsFromPreset(DEFAULT_PRESET);
 
 export const DEMO_FINDINGS: OverlayFinding[] = [
   {
