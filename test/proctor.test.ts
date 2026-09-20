@@ -115,7 +115,15 @@ describe("L1 weights", () => {
     const weighted = applyL1Weights(
       [
         node({ id: "header", kind: "header", title: "Header" }),
-        node({ id: "experience", kind: "experience", title: "Experience" }),
+        node({
+          id: "experience",
+          kind: "experience",
+          title: "Experience",
+          children: [
+            node({ id: "job1", kind: "job", title: "Acme", level: 2, parentId: "experience" }),
+            node({ id: "job2", kind: "job", title: "Beta", level: 2, parentId: "experience" }),
+          ],
+        }),
         node({ id: "skills", kind: "skills", title: "Skills" }),
       ],
       {
@@ -127,5 +135,8 @@ describe("L1 weights", () => {
     expect(weighted.reduce((sum, item) => sum + (item.weight ?? 0), 0)).toBe(100);
     const experience = weighted.find((item) => item.id === "experience");
     expect(experience?.weight ?? 0).toBeGreaterThan(weighted[0]?.weight ?? 0);
+    expect((experience?.children ?? []).reduce((sum, child) => sum + (child.weight ?? 0), 0)).toBe(
+      experience?.weight ?? 0,
+    );
   });
 });

@@ -65,9 +65,12 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
       </div>
       {score.telemetry ? (
         <p className="score-cost" aria-label="Jev token cost">
-          {formatTokenCount(score.telemetry.totalTokens)} tokens · {formatTokenCount(score.telemetry.inputTokens)} in /{" "}
-          {formatTokenCount(score.telemetry.outputTokens)} out · {formatReviewCost(score.telemetry.costUsd)}
-          {score.telemetry.requestCount > 1 ? ` · ${score.telemetry.requestCount} reads` : ""}
+          This review burned {formatTokenCount(score.telemetry.totalTokens)} tokens (
+          {formatTokenCount(score.telemetry.inputTokens)} in / {formatTokenCount(score.telemetry.outputTokens)} out) ·{" "}
+          {formatReviewCost(score.telemetry.costUsd)}
+          {score.telemetry.requestCount > 1
+            ? ` · ${score.telemetry.requestCount} Jev requests`
+            : " · 1 Jev request"}
         </p>
       ) : null}
       {score.hierarchy && score.hierarchy.length > 0 ? (
@@ -83,7 +86,10 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
                 <ul>
                   {node.children.map((child) => (
                     <li key={child.id} className={child.status}>
-                      {child.title}
+                      <span>{child.title}</span>
+                      <strong>
+                        {child.status === "scored" ? Math.round(child.contribution ?? 0) : "…"}
+                      </strong>
                     </li>
                   ))}
                 </ul>
@@ -116,11 +122,14 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
             <label>
               <span>{dimension.label}</span>
               <span>
-                {dimension.score.toFixed(1)} / {dimension.max}
+                {dimension.max > 4 ? Math.round(dimension.score) : dimension.score.toFixed(1)} / {dimension.max}
               </span>
             </label>
             <div className="track">
-              <div className="fill" style={{ "--p": dimension.score / dimension.max } as CSSProperties} />
+              <div
+                className="fill"
+                style={{ "--p": dimension.max > 0 ? dimension.score / dimension.max : 0 } as CSSProperties}
+              />
             </div>
           </div>
         ))}

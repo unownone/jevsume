@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractRequirementCandidates, groupResumeText } from "../worker/ats/group.ts";
+import { buildProctorBlocks, extractRequirementCandidates, groupResumeText } from "../worker/ats/group.ts";
 
 describe("groupResumeText", () => {
   it("groups canonical ATS headings and bullets", () => {
@@ -53,6 +53,33 @@ TypeScript, Go, Kafka`);
       "Built an event bus that cut p99 latency 40%",
     );
     expect(bullet?.line).toBeGreaterThan(0);
+  });
+
+  it("promotes a leading name into a header and splits roles under experience", () => {
+    const grouped = groupResumeText(`Jane Doe
+roy@example.com
+Experience
+Acme | Software Engineer | Full Time
+- Built a Kafka pipeline
+Beta | Intern | Part Time
+- Wrote Python jobs
+Skills
+Go, Kafka
+`);
+    expect(grouped.sections[0]?.kind).toBe("header");
+    const blocks = buildProctorBlocks(`Jane Doe
+roy@example.com
+Experience
+Acme | Software Engineer | Full Time
+- Built a Kafka pipeline
+Beta | Intern | Part Time
+- Wrote Python jobs
+Skills
+Go, Kafka
+`);
+    expect(blocks.some((block) => block.kindHint === "header")).toBe(true);
+    expect(blocks.filter((block) => block.kindHint === "job")).toHaveLength(2);
+    expect(blocks.some((block) => block.kindHint === "skills")).toBe(true);
   });
 });
 

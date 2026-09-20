@@ -233,30 +233,51 @@ export default function StudioApp() {
           throw new Error(typeof event.message === "string" ? event.message : "Review failed");
         }
         if (type === "hierarchy" && Array.isArray(event.roots)) {
-          setSectionBands(bandsFromRoots(event.roots, runs));
+          setSectionBands(bandsFromRoots(event.roots, runs, false));
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: 0,
               hierarchy: event.roots as StudioScore["hierarchy"],
+              dimensions: dimensionsFromHierarchy(event.roots),
               telemetry: event.telemetry as StudioScore["telemetry"],
             }),
           );
         }
         if (type === "weights" && Array.isArray(event.roots)) {
-          setSectionBands(bandsFromRoots(event.roots, runs));
+          setSectionBands(bandsFromRoots(event.roots, runs, false));
           setLiveScore((current) =>
             mergeLiveScore(current, {
               hierarchy: event.roots as StudioScore["hierarchy"],
+              dimensions: dimensionsFromHierarchy(event.roots),
               telemetry: event.telemetry as StudioScore["telemetry"],
             }),
           );
         }
         if (type === "section") {
           const overall = typeof event.overall === "number" ? event.overall : 0;
-          const node = event.node as { id?: string; title?: string; start?: number; end?: number };
+          const node = event.node as { id?: string; title?: string; start?: number; end?: number; status?: "pending" | "scored" };
+          const liveRoots = Array.isArray(event.roots) ? event.roots : null;
+          if (liveRoots) {
+            setSectionBands((current) => mergeBands(current, bandsFromRoots(liveRoots, runs, true)));
+          } else if (typeof node.start === "number" && typeof node.end === "number" && node.id) {
+            const box = boxForSpan(runs, node.start, node.end);
+            if (box) {
+              setSectionBands((current) =>
+                upsertBand(current, {
+                  id: node.id ?? "section",
+                  title: node.title ?? "Section",
+                  status: node.status ?? "scored",
+                  box,
+                }),
+              );
+            }
+          }
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: overall,
+              noteCount: (current?.noteCount ?? 0) + mapped.length,
+              hierarchy: (liveRoots as StudioScore["hierarchy"]) ?? current?.hierarchy,
+              dimensions: liveRoots ? dimensionsFromHierarchy(liveRoots) : current?.dimensions,
               telemetry: event.telemetry as StudioScore["telemetry"],
             }),
           );
@@ -304,6 +325,7 @@ export default function StudioApp() {
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: overall,
+              noteCount: (current?.noteCount ?? 0) + mapped.length,
               suggestions: suggestions.map((item) => {
                 const suggestion = item as {
                   id?: string;
@@ -339,6 +361,7 @@ export default function StudioApp() {
             mergeLiveScore(current, {
               value: review.jevScore?.value ?? current?.value ?? 0,
               hierarchy: review.hierarchy ?? current?.hierarchy,
+              dimensions: review.hierarchy ? dimensionsFromHierarchy(review.hierarchy) : current?.dimensions,
               telemetry: review.telemetry ?? current?.telemetry,
               suggestions: (review.suggestions ?? []).map((item) => ({
                 id: item.id ?? crypto.randomUUID(),
@@ -642,25 +665,72 @@ export default function StudioApp() {
   );
 }
 
-function bandsFromRoots(roots: unknown, ledger: LedgerRun[]): SectionBand[] {
+function bandsFromRoots(roots: unknown, ledger: LedgerRun[], includeChildren: boolean): SectionBand[] {
+  if (!Array.isArray(roots)) {
+    return [];
+  }
+  const out: SectionBand[] = [];
+  for (const item of roots) {
+    const node = item as {
+      id?: string;
+      title?: string;
+      start?: number;
+      end?: number;
+      status?: "pending" | "scored";
+      children?: unknown[];
+    };
+    if (!node.id || typeof node.start !== "number" || typeof node.end !== "number") {
+      continue;
+    }
+    const box = boxForSpan(ledger, node.start, node.end);
+    if (box) {
+      out.push({
+        id: node.id,
+        title: node.title ?? node.id,
+        status: node.status ?? "pending",
+        box,
+      });
+    }
+    if (includeChildren && Array.isArray(node.children)) {
+      out.push(...bandsFromRoots(node.children, ledger, true));
+    }
+  }
+  return out;
+}
+
+function upsertBand(current: SectionBand[], next: SectionBand): SectionBand[] {
+  const index = current.findIndex((item) => item.id === next.id);
+  if (index < 0) {
+    return [...current, next];
+  }
+  const copy = [...current];
+  copy[index] = next;
+  return copy;
+}
+
+function mergeBands(current: SectionBand[], incoming: SectionBand[]): SectionBand[] {
+  let next = current;
+  for (const band of incoming) {
+    next = upsertBand(next, band);
+  }
+  return next;
+}
+
+function dimensionsFromHierarchy(roots: unknown): StudioScore["dimensions"] {
   if (!Array.isArray(roots)) {
     return [];
   }
   return roots.flatMap((item) => {
-    const node = item as { id?: string; title?: string; start?: number; end?: number; status?: "pending" | "scored" };
-    if (!node.id || typeof node.start !== "number" || typeof node.end !== "number") {
-      return [];
-    }
-    const box = boxForSpan(ledger, node.start, node.end);
-    if (!box) {
+    const node = item as { id?: string; title?: string; contribution?: number | null; weight?: number | null };
+    if (!node.id) {
       return [];
     }
     return [
       {
         id: node.id,
-        title: node.title ?? node.id,
-        status: node.status ?? "pending",
-        box,
+        label: node.title ?? node.id,
+        score: node.contribution ?? 0,
+        max: node.weight ?? 0,
       },
     ];
   });

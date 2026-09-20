@@ -230,8 +230,9 @@ describe("Hono API", () => {
         prompt?: unknown;
       }[];
     };
-    expect(listBody.items.length).toBeGreaterThanOrEqual(2);
+    expect(listBody.items).toHaveLength(2);
     expect(listBody.items[0]?.prompt).toBeUndefined();
+    expect(listBody.items[0]?.promptHash).toBe(listBody.items[1]?.promptHash);
     expect(listBody.items.every((item) => item.kind === "general_review")).toBe(true);
 
     const full = await app.request(`/api/evals/${a.id}`);
@@ -373,16 +374,26 @@ describe("Hono API", () => {
       .map((line) => JSON.parse(line) as { type: string; overall?: number; telemetry?: { totalTokens: number; requestCount: number }; review?: { hierarchy: unknown[]; telemetry: { requestCount: number } } });
     expect(events.map((event) => event.type)[0]).toBe("hierarchy");
     expect(events.some((event) => event.type === "weights")).toBe(true);
-    expect(events.some((event) => event.type === "section")).toBe(true);
+    expect(events.some((event) => event.type === "section" && Array.isArray((event as { roots?: unknown[] }).roots))).toBe(
+      true,
+    );
     expect(events.at(-1)?.type).toBe("complete");
     const sections = events.filter((event) => event.type === "section");
     const overalls = sections.map((event) => event.overall ?? 0);
     for (let index = 1; index < overalls.length; index += 1) {
       expect(overalls[index] ?? 0).toBeGreaterThanOrEqual(overalls[index - 1] ?? 0);
     }
-    const complete = events.at(-1);
+    const complete = events.at(-1) as {
+      type: string;
+      review?: {
+        hierarchy: unknown[];
+        telemetry: { requestCount: number; totalTokens: number; costUsd: number };
+        suggestions: { recoverPoints?: number }[];
+      };
+    };
     expect(complete?.review?.hierarchy.length).toBeGreaterThan(0);
     expect(complete?.review?.telemetry.requestCount).toBeGreaterThan(1);
+    expect(complete?.review?.suggestions.some((item) => (item.recoverPoints ?? 0) > 0)).toBe(true);
   });
 
   it("counts unique visitors once per visitor id", async () => {

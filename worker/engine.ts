@@ -365,15 +365,8 @@ export class ReviewEngine {
     };
     const hierarchyEval = await this.evaluate(hierarchyRequest);
     usage = addUsage(usage, usageFromResult(hierarchyEval.result));
-    await this.persistEval({
-      kind: "general_review",
-      resumeId: stored.id,
-      personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
-      request: hierarchyRequest,
-      result: hierarchyEval.result,
-      review: null,
-      jevScore: null,
-    });
+    let combinedQuestions: Questions = { ...hierarchyRequest.questions };
+    let combinedAnswers = { ...hierarchyEval.result.answers };
     let roots = assembleTree(blocks, hierarchyEval.result.answers);
     const ms = () => Math.max(0, Math.round(performance.now() - started));
     yield { type: "hierarchy", roots, telemetry: telemetryOf(usage, ms()) };
@@ -396,23 +389,16 @@ export class ReviewEngine {
     };
     const weightEval = await this.evaluate(weightRequest);
     usage = addUsage(usage, usageFromResult(weightEval.result));
-    await this.persistEval({
-      kind: "general_review",
-      resumeId: stored.id,
-      personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
-      request: weightRequest,
-      result: weightEval.result,
-      review: null,
-      jevScore: null,
-    });
+    combinedQuestions = { ...combinedQuestions, ...weightRequest.questions };
+    combinedAnswers = { ...combinedAnswers, ...weightEval.result.answers };
     roots = applyL1Weights(roots, weightEval.result.answers);
     yield { type: "weights", roots, telemetry: telemetryOf(usage, ms()) };
 
     const suggestions: ReviewSuggestion[] = [];
     const findings: ReviewFinding[] = [];
     const targets = scoringTargets(roots);
-    const scored = await Promise.all(
-      targets.map(async (node) => {
+    const inflight = new Map(
+      targets.map((node, index) => {
         const path = `\`node.text\` of section “${node.title}”`;
         const request: SystemOneRequest = {
           state:
@@ -429,22 +415,22 @@ export class ReviewEngine {
                 },
           questions: buildSectionQuestions(node.kind, node.id, path),
         };
-        const evaluated = await this.evaluate(request);
-        return { node, request, evaluated };
+        const promise = this.evaluate(request).then((evaluated) => ({
+          index,
+          node,
+          request,
+          evaluated,
+        }));
+        return [index, promise] as const;
       }),
     );
 
-    for (const item of scored) {
+    while (inflight.size > 0) {
+      const item = await Promise.race(inflight.values());
+      inflight.delete(item.index);
       usage = addUsage(usage, usageFromResult(item.evaluated.result));
-      await this.persistEval({
-        kind: "general_review",
-        resumeId: stored.id,
-        personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
-        request: item.request,
-        result: item.evaluated.result,
-        review: null,
-        jevScore: null,
-      });
+      combinedQuestions = { ...combinedQuestions, ...item.request.questions };
+      combinedAnswers = { ...combinedAnswers, ...item.evaluated.result.answers };
       const weight = nodeWeightForScoring(roots, item.node);
       const scoredNode = scoreHierarchyNode(item.node, item.evaluated.result.answers, weight);
       roots = rollUpParents(replaceNode(roots, scoredNode.node));
@@ -454,6 +440,7 @@ export class ReviewEngine {
         type: "section",
         node: scoredNode.node,
         overall: climbOverall(roots),
+        roots,
         suggestions: scoredNode.suggestions,
         findings: scoredNode.findings,
         telemetry: telemetryOf(usage, ms()),
@@ -476,8 +463,12 @@ export class ReviewEngine {
       kind: persona ? "job_review" : "general_review",
       resumeId: stored.id,
       personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
-      request: hierarchyRequest,
-      result: hierarchyEval.result,
+      request: { state: hierarchyRequest.state, questions: combinedQuestions },
+      result: {
+        ...hierarchyEval.result,
+        answers: combinedAnswers,
+        usage: { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens },
+      },
       review,
       jevScore: review.jevScore.value,
     });

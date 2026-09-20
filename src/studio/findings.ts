@@ -320,6 +320,15 @@ function numberFindings(findings: OverlayFinding[]): OverlayFinding[] {
     .map((finding, index) => ({ ...finding, index: index + 1, id: `jev-${index + 1}` }));
 }
 
+function spreadCap(findings: OverlayFinding[], cap: number): OverlayFinding[] {
+  if (findings.length <= cap) {
+    return findings;
+  }
+  const head = Math.ceil(cap / 2);
+  const tail = cap - head;
+  return [...findings.slice(0, head), ...findings.slice(findings.length - tail)];
+}
+
 export function findingsFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): OverlayFinding[] {
   return reviewFromGlyphs(glyphs, target).findings;
 }
@@ -423,9 +432,6 @@ export function reviewFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): { find
   const ordered = [...lines].sort((left, right) => left.page - right.page || left.box.y - right.box.y);
 
   for (const line of ordered) {
-    if (findings.length >= FINDING_CAP) {
-      break;
-    }
     const key = `${line.page}:${line.box.y.toFixed(1)}`;
     if (usedY.has(key)) {
       continue;
@@ -443,20 +449,15 @@ export function reviewFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): { find
     });
   }
 
-  if (findings.length < FINDING_CAP) {
-    for (const extra of personaGaps(lines, whole, usedY, target)) {
-      if (findings.length >= FINDING_CAP) {
-        break;
-      }
-      const isMentor = /mentor/i.test(`${extra.title} ${extra.detail}`);
-      if (isMentor && findings.some((item) => /mentor/i.test(`${item.title} ${item.detail}`))) {
-        continue;
-      }
-      findings.push(extra);
+  for (const extra of personaGaps(lines, whole, usedY, target)) {
+    const isMentor = /mentor/i.test(`${extra.title} ${extra.detail}`);
+    if (isMentor && findings.some((item) => /mentor/i.test(`${item.title} ${item.detail}`))) {
+      continue;
     }
+    findings.push(extra);
   }
 
-  const numbered = numberFindings(findings);
+  const numbered = numberFindings(spreadCap(findings, FINDING_CAP));
   return {
     findings: numbered,
     score: scoreFromDocument(lines, numbered, target),

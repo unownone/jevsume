@@ -363,6 +363,12 @@
   font-size: 0.7rem;
 }
 
+.score-tree ul li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
 .suggestion-card em {
   display: block;
   font-style: normal;
@@ -390,7 +396,7 @@
   font-size: 0.62rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8a5a12;
+  color: #6b4510;
 }
 
 .section-band.pending {
@@ -400,12 +406,6 @@
 .section-band.scored {
   border-color: rgba(142, 224, 168, 0.45);
   background: rgba(142, 224, 168, 0.06);
-}
-  display: block;
-  font-style: normal;
-  color: var(--gold);
-  font-size: 0.7rem;
-  margin: 2px 0 4px;
 }
 
 .suggestion-detail {

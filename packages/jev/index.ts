@@ -25,6 +25,7 @@ export {
 export { buildSectionQuestions, buildWeightQuestions, rubricForKind } from "./rubrics.ts";
 export { applyContributions, climbOverall, largestRemainderPercents, recoverPoints } from "./iterative-score.ts";
 export {
+  applyChildWeights,
   applyL1Weights,
   buildProctorReview,
   nodeWeightForScoring,

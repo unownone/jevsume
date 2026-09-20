@@ -415,6 +415,9 @@ export default function App() {
                 clientMs={clientMs}
                 serverMs={review.telemetry.serverMs}
                 inputTokens={review.telemetry.inputTokens}
+                outputTokens={review.telemetry.outputTokens}
+                totalTokens={review.telemetry.totalTokens}
+                requestCount={review.telemetry.requestCount}
                 costUsd={review.telemetry.costUsd}
               />
             </>

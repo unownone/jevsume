@@ -40,10 +40,32 @@ export function applyL1Weights(roots: HierarchyNode[], answers: Record<string, A
     return Math.max(0.5, prior * (0.45 + 0.55 * score01));
   });
   const percents = largestRemainderPercents(raw, 100);
-  return roots.map((node, index) => ({
-    ...node,
-    weight: percents[index] ?? 0,
-  }));
+  return applyChildWeights(
+    roots.map((node, index) => ({
+      ...node,
+      weight: percents[index] ?? 0,
+    })),
+  );
+}
+
+/** Split an L1 weight across children with integers that still sum to the parent. */
+export function applyChildWeights(roots: HierarchyNode[]): HierarchyNode[] {
+  return roots.map((root) => {
+    if (root.children.length === 0 || root.weight === null) {
+      return root;
+    }
+    const shares = largestRemainderPercents(
+      root.children.map(() => 1),
+      root.weight,
+    );
+    return {
+      ...root,
+      children: root.children.map((child, index) => ({
+        ...child,
+        weight: shares[index] ?? 0,
+      })),
+    };
+  });
 }
 
 function spanFor(node: HierarchyNode): TextSpan {
@@ -151,15 +173,15 @@ export function rollUpParents(roots: HierarchyNode[]): HierarchyNode[] {
     if (root.kind !== "experience" || root.children.length === 0) {
       return root;
     }
-    const childWeight = (root.weight ?? 0) / root.children.length;
     const children = root.children.map((child) => {
       if (child.score01 === null) {
         return child;
       }
+      const weight = child.weight ?? childShare(root.weight ?? 0, root.children.length);
       return {
         ...child,
-        weight: childWeight,
-        contribution: scoredContributionSafe(childWeight, child.score01),
+        weight,
+        contribution: scoredContributionSafe(weight, child.score01),
       };
     });
     const scoredKids = children.filter((child) => child.score01 !== null);
@@ -253,8 +275,11 @@ export function childShare(parentWeight: number, childCount: number): number {
 }
 
 export function nodeWeightForScoring(roots: HierarchyNode[], node: HierarchyNode): number {
+  if (node.weight !== null) {
+    return node.weight;
+  }
   if (node.level === 1) {
-    return node.weight ?? 0;
+    return 0;
   }
   const parent = roots.find((root) => root.id === node.parentId);
   return childShare(parent?.weight ?? 0, parent?.children.length ?? 1);

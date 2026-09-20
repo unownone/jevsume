@@ -273,6 +273,7 @@ export type ProctorEvent =
       type: "section";
       node: HierarchyNode;
       overall: number;
+      roots: HierarchyNode[];
       suggestions: ReviewSuggestion[];
       findings: ReviewFinding[];
       telemetry: ReviewTelemetry;
