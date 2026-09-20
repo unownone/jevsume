@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef } from "react";
 import type { FormEvent } from "react";
 import type { JobPersonaItem } from "../lib/api.ts";
+import {
+  CHOOSE_FOR_ME_ID,
+  CHOOSE_FOR_ME_LABEL,
+  choosePersonaIdForUser,
+  isChooseForMe,
+} from "../../shared/resume-presets.ts";
 
 function personaLabel(persona: JobPersonaItem): string {
   return persona.isDefault ? `${persona.title} (default)` : persona.title;
@@ -45,6 +51,7 @@ type PersonaControlsProps = {
   busy: boolean;
   personaBlocked: boolean;
   personaWait: number;
+  resumeText?: string;
 };
 
 export function PersonaControls({
@@ -63,6 +70,7 @@ export function PersonaControls({
   busy,
   personaBlocked,
   personaWait,
+  resumeText,
 }: PersonaControlsProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -91,9 +99,17 @@ export function PersonaControls({
           <select
             id="job-persona"
             value={personaId}
-            onChange={(event) => onPersonaId(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isChooseForMe(next)) {
+                onPersonaId(choosePersonaIdForUser({ resumeText }));
+                return;
+              }
+              onPersonaId(next);
+            }}
             aria-label="Job Persona"
           >
+            <option value={CHOOSE_FOR_ME_ID}>{CHOOSE_FOR_ME_LABEL}</option>
             {groups.defaults.map((persona) => (
               <option key={persona.id} value={persona.id}>
                 {personaLabel(persona)}

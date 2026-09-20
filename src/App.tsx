@@ -322,6 +322,7 @@ export default function App() {
             busy={busy}
             personaBlocked={personaBlocked}
             personaWait={personaWait}
+            resumeText={resumeText}
           />
           <div className="row">
             <button

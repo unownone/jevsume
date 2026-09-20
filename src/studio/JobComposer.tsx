@@ -16,9 +16,10 @@ type JobComposerProps = {
   onChange: (next: JobTargetFields) => void;
   onClose?: () => void;
   variant: "popover" | "plate";
+  resumeText?: string;
 };
 
-export function JobComposer({ value, onChange, onClose, variant }: JobComposerProps) {
+export function JobComposer({ value, onChange, onClose, variant, resumeText }: JobComposerProps) {
   const targeted = hasJobTarget(value);
 
   function setField<K extends keyof JobTargetFields>(key: K, next: JobTargetFields[K]) {
@@ -37,7 +38,7 @@ export function JobComposer({ value, onChange, onClose, variant }: JobComposerPr
         <p>
           {targeted
             ? "Jev will score skills fit, missing keywords, role relevance, and seniority for this listing."
-            : "Pick a default role, or paste the posting. Title, company, and URL are optional. Skip this and Jev still reviews the page."}
+            : "Pick a default role, choose for me, or paste the posting. Title, company, and URL are optional. Skip this and Jev still reviews the page."}
         </p>
       </div>
       <PresetSelect
@@ -46,6 +47,7 @@ export function JobComposer({ value, onChange, onClose, variant }: JobComposerPr
         allowEmpty
         emptyLabel="Paste your own listing"
         label="Default role"
+        resumeText={resumeText}
         onChange={(id) => {
           const preset = presetById(id);
           onChange(preset ? jobFieldsFromPreset(preset) : { ...EMPTY_JOB_TARGET });

@@ -1001,3 +1001,144 @@ export function matchPreset(input: {
     return Boolean(text && preset.jobText.trim() === text);
   });
 }
+
+export const CHOOSE_FOR_ME_ID = "__choose_for_me__";
+export const CHOOSE_FOR_ME_LABEL = "Choose for me";
+
+const STOP_WORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "who",
+  "that",
+  "this",
+  "from",
+  "into",
+  "resume",
+  "summary",
+  "experience",
+  "skills",
+  "education",
+  "requirements",
+  "not",
+  "only",
+  "can",
+  "used",
+  "using",
+  "work",
+  "team",
+  "state",
+  "university",
+  "acme",
+  "has",
+  "have",
+  "had",
+  "was",
+  "were",
+  "been",
+  "are",
+]);
+
+export function isChooseForMe(id: string): boolean {
+  return id === CHOOSE_FOR_ME_ID;
+}
+
+function tokenize(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9+]+/g)
+      .filter((token) => token.length >= 3 && !STOP_WORDS.has(token)),
+  );
+}
+
+function hasNeedle(haystack: string, needle: string): boolean {
+  const trimmed = needle.trim().toLowerCase();
+  if (trimmed.length < 2) {
+    return false;
+  }
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9+])${escaped}(?:[^a-z0-9+]|$)`, "i").test(haystack);
+}
+
+function scorePreset(preset: ResumePreset, resume: string, resumeTokens: Set<string>): number {
+  let score = 0;
+  if (hasNeedle(resume, preset.title)) {
+    score += 24;
+  }
+  for (const tag of preset.tags) {
+    if (hasNeedle(resume, tag)) {
+      score += 12;
+    }
+  }
+  for (const token of tokenize(preset.title)) {
+    if (resumeTokens.has(token)) {
+      score += 6;
+    }
+  }
+  if (hasNeedle(resume, preset.level)) {
+    score += 3;
+  }
+  for (const token of tokenize(`${preset.blurb} ${preset.jobText}`)) {
+    if (resumeTokens.has(token)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
+function pickCatalogPreset(random: () => number): ResumePreset {
+  const last = RESUME_PRESETS.length - 1;
+  const index = Math.max(0, Math.min(last, Math.floor(random() * RESUME_PRESETS.length)));
+  const preset = RESUME_PRESETS[index];
+  if (!preset) {
+    return DEFAULT_PRESET;
+  }
+  return preset;
+}
+
+export function choosePresetForUser(input?: {
+  resumeText?: string;
+  random?: () => number;
+}): ResumePreset {
+  const random = input?.random ?? Math.random;
+  const resume = input?.resumeText?.trim() ?? "";
+  if (!resume) {
+    return pickCatalogPreset(random);
+  }
+  const resumeTokens = tokenize(resume);
+  let best = RESUME_PRESETS[0] ?? DEFAULT_PRESET;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const preset of RESUME_PRESETS) {
+    const score = scorePreset(preset, resume, resumeTokens);
+    if (score > bestScore) {
+      best = preset;
+      bestScore = score;
+    }
+  }
+  if (bestScore <= 0) {
+    return pickCatalogPreset(random);
+  }
+  return best;
+}
+
+export function resolvePresetSelection(
+  id: string,
+  input?: { resumeText?: string; random?: () => number },
+): string {
+  if (id === "") {
+    return "";
+  }
+  if (isChooseForMe(id)) {
+    return choosePresetForUser(input).id;
+  }
+  return id;
+}
+
+export function choosePersonaIdForUser(input?: {
+  resumeText?: string;
+  random?: () => number;
+}): string {
+  return presetPersonaId(choosePresetForUser(input).id);
+}

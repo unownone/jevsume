@@ -532,6 +532,7 @@ export default function StudioApp() {
             onChange={setJobTarget}
             onClose={() => setJobOpen(false)}
             variant="popover"
+            resumeText={resumeText}
           />
         </div>
       ) : null}
@@ -562,7 +563,7 @@ export default function StudioApp() {
             }}
             onDemo={(id) => void loadDemo("loaded", id)}
             jobSlot={
-              <JobComposer value={jobTarget} onChange={setJobTarget} variant="plate" />
+              <JobComposer value={jobTarget} onChange={setJobTarget} resumeText={resumeText} variant="plate" />
             }
           />
         ) : (

@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { extractRequirementCandidates } from "../worker/ats/group.ts";
 import {
+  CHOOSE_FOR_ME_ID,
   DEFAULT_PRESET_ID,
   JOB_TRACKS,
+  choosePersonaIdForUser,
+  choosePresetForUser,
   groupedResumePresets,
+  isChooseForMe,
   jobFieldsFromPreset,
   parsePresetPersonaId,
   presetById,
   presetPersonaId,
   RESUME_PRESETS,
+  resolvePresetSelection,
 } from "../shared/resume-presets.ts";
 
 describe("resume presets", () => {
@@ -61,5 +66,51 @@ describe("resume presets", () => {
     expect(parsePresetPersonaId("preset:swe-staff")).toBe("swe-staff");
     expect(parsePresetPersonaId("default")).toBeNull();
     expect(parsePresetPersonaId("preset:missing")).toBeNull();
+  });
+});
+
+describe("choose for me", () => {
+  it("uses a sentinel that is not a catalog id or a user-added persona id", () => {
+    expect(isChooseForMe(CHOOSE_FOR_ME_ID)).toBe(true);
+    expect(isChooseForMe("swe-staff")).toBe(false);
+    expect(isChooseForMe("preset:swe-staff")).toBe(false);
+    expect(presetById(CHOOSE_FOR_ME_ID)).toBeUndefined();
+    expect(parsePresetPersonaId(CHOOSE_FOR_ME_ID)).toBeNull();
+  });
+
+  it("picks only built-in default roles, never a user-added job id", () => {
+    const catalogIds = new Set(RESUME_PRESETS.map((preset) => preset.id));
+    const first = choosePresetForUser({ random: () => 0 });
+    const last = choosePresetForUser({ random: () => 0.999 });
+    expect(catalogIds.has(first.id)).toBe(true);
+    expect(catalogIds.has(last.id)).toBe(true);
+    expect(first.id).toBe(RESUME_PRESETS[0]?.id);
+    expect(last.id).toBe(RESUME_PRESETS.at(-1)?.id);
+    expect(first.id).not.toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("matches a product resume to a default product role instead of a random engineering listing", () => {
+    const resume = presetById("pm-senior")?.resumeText ?? "";
+    const chosen = choosePresetForUser({ resumeText: resume, random: () => 0 });
+    expect(chosen.track).toBe("product");
+    expect(chosen.id).toMatch(/^pm-/);
+  });
+
+  it("matches an SRE resume to the default SRE listing", () => {
+    const resume = presetById("sre-senior")?.resumeText ?? "";
+    const chosen = choosePresetForUser({ resumeText: resume, random: () => 0 });
+    expect(chosen.id).toBe("sre-senior");
+  });
+
+  it("resolves the choose-for-me sentinel to a real preset id", () => {
+    expect(resolvePresetSelection("", { random: () => 0 })).toBe("");
+    expect(resolvePresetSelection("frontend-senior")).toBe("frontend-senior");
+    expect(resolvePresetSelection(CHOOSE_FOR_ME_ID, { random: () => 0 })).toBe(RESUME_PRESETS[0]?.id);
+  });
+
+  it("maps the pick onto a built-in preset persona, never a user-added job", () => {
+    const id = choosePersonaIdForUser({ random: () => 0 });
+    expect(id).toBe(`preset:${RESUME_PRESETS[0]?.id}`);
+    expect(parsePresetPersonaId(id)).toBe(RESUME_PRESETS[0]?.id);
   });
 });
