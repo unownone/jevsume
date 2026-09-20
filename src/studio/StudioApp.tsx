@@ -425,26 +425,6 @@ export default function StudioApp() {
     setActiveId(null);
   }
 
-  async function goScene(next: Scene) {
-    if (next === "empty") {
-      setData(null);
-      setFindings([]);
-      setActiveId(null);
-      setScene("empty");
-      return;
-    }
-    if (!data) {
-      await loadDemo(next);
-      return;
-    }
-    if (next === "loaded") {
-      setFindings([]);
-      setActiveId(null);
-      setThreads({});
-    }
-    setScene(next);
-  }
-
   useEffect(() => {
     if (!activeId) {
       return;
@@ -648,19 +628,6 @@ export default function StudioApp() {
       ) : null}
 
       {error ? <p className="studio-error">{error}</p> : null}
-
-      <nav className="mock-scenes" aria-label="Mock scenes">
-        <span>Scenes</span>
-        <button type="button" className={scene === "empty" ? "is-on" : ""} onClick={() => void goScene("empty")}>
-          Drop
-        </button>
-        <button type="button" className={scene === "loaded" && findings.length === 0 ? "is-on" : ""} onClick={() => void goScene("loaded")}>
-          Page
-        </button>
-        <button type="button" className={scene === "reviewed" ? "is-on" : ""} onClick={() => void goScene("reviewed")}>
-          Notes
-        </button>
-      </nav>
     </div>
   );
 }
