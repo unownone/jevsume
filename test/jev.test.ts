@@ -44,8 +44,14 @@ describe("JEV prompt manager", () => {
     expect(questions.ats_parse?.type).toBe("score");
     expect(questions.has_summary?.type).toBe("noul");
     expect(questions.weakest_dimension?.type).toBe("choice");
+    expect(questions.leadership_repeat?.type).toBe("choice");
+    expect(questions.role_over_six?.type).toBe("noul");
+    expect(questions.skill_unproven?.type).toBe("noul");
+    expect(questions.skill_duplicate?.type).toBe("noul");
     expect(questions.sec_s1_kind?.type).toBe("choice");
     expect(questions.sec_s1_quality?.type).toBe("score");
+    expect(Object.keys(questions).some((id) => /trust|honest/i.test(id))).toBe(false);
+    expect(JSON.stringify(questions)).not.toMatch(/trustworth/i);
   });
 
   it("emits persona and job-review questions keyed by candidate/requirement ids", () => {
@@ -190,6 +196,71 @@ describe("transformers", () => {
     ]);
   });
 
+  it("turns closed leadership and skill answers into rewrite suggestions", () => {
+    const review = transformGeneralReview({
+      provider: "mock",
+      sections: [sampleSection],
+      result: {
+        model: "jev-latest",
+        answers: {
+          wording: {
+            type: "score",
+            score: 3,
+            legend: {},
+            probabilities: { "3": 1 },
+            confidence: 0.8,
+          },
+          conciseness: {
+            type: "score",
+            score: 3,
+            legend: {},
+            probabilities: { "3": 1 },
+            confidence: 0.8,
+          },
+          structure: {
+            type: "score",
+            score: 3,
+            legend: {},
+            probabilities: { "3": 1 },
+            confidence: 0.8,
+          },
+          metrics: {
+            type: "score",
+            score: 3,
+            legend: {},
+            probabilities: { "3": 1 },
+            confidence: 0.8,
+          },
+          ats_parse: {
+            type: "score",
+            score: 3,
+            legend: {},
+            probabilities: { "3": 1 },
+            confidence: 0.8,
+          },
+          weakest_dimension: {
+            type: "choice",
+            choice: "none",
+            probabilities: { none: 1 },
+            confidence: 0.7,
+          },
+          leadership_repeat: {
+            type: "choice",
+            choice: "repeated",
+            probabilities: { repeated: 1 },
+            confidence: 0.8,
+          },
+          role_over_six: { type: "noul", noul: 0.8 },
+          skill_unproven: { type: "noul", noul: 0.8 },
+          skill_duplicate: { type: "noul", noul: 0.8 },
+        },
+      },
+    });
+    expect(review.suggestions.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["rotate-verb", "drop-bullet", "destack-skills", "skill-duplicate"]),
+    );
+  });
+
   it("maps job requirement verdicts onto findings", () => {
     const persona: JobPersona = {
       id: "p1",
@@ -285,6 +356,16 @@ describe("MockJudgmentProvider", () => {
     expect(provider.id).toBe("mock");
     expect(Object.keys(result.answers).sort()).toEqual(Object.keys(questions).sort());
     expect(result.answers.metrics?.type).toBe("score");
+  });
+
+  it("classifies repeated leadership verbs from the closed set", async () => {
+    const provider = new MockJudgmentProvider();
+    const questions = buildGeneralReviewQuestions([]);
+    const result = await provider.evaluate({
+      state: { resume: { text: "Led a team. Led hiring. Led on-call." } },
+      questions,
+    });
+    expect(result.answers.leadership_repeat).toMatchObject({ type: "choice", choice: "repeated" });
   });
 });
 

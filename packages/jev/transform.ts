@@ -162,6 +162,11 @@ function generalSuggestions(
   const hasSkills = asNoul(answers.has_skills);
   const weakest = asChoice(answers.weakest_dimension);
 
+  const leadership = asChoice(answers.leadership_repeat);
+  const denseRole = asNoul(answers.role_over_six);
+  const unproven = asNoul(answers.skill_unproven);
+  const duplicate = asNoul(answers.skill_duplicate);
+
   if (metrics && metrics.score < 2) {
     const span = spanForDimension("metrics", sections) ?? fallbackSpan(sections);
     out.push(
@@ -238,6 +243,42 @@ function generalSuggestions(
         span,
         "weakest",
       ),
+    );
+  }
+  if (leadership?.choice === "repeated") {
+    const span = spanForDimension("wording", sections) ?? fallbackSpan(sections);
+    out.push(
+      suggestion(
+        "rotate-verb",
+        "A closed-set leadership verb repeats three or more times. Rotate later hits (mentored, coached, owned) — do not invent adjectives.",
+        span,
+      ),
+    );
+  }
+  if (denseRole && denseRole.noul >= 0.55) {
+    const span = spanForDimension("conciseness", sections) ?? fallbackSpan(sections);
+    out.push(
+      suggestion(
+        "drop-bullet",
+        "A role has more than six bullets. Keep numbered lines; drop the rest.",
+        span,
+      ),
+    );
+  }
+  if (unproven && unproven.noul >= 0.55) {
+    const span = spanForDimension("skills", sections) ?? fallbackSpan(sections);
+    out.push(
+      suggestion(
+        "destack-skills",
+        "A listed skill never appears in experience. Put it next to the job, or drop it.",
+        span,
+      ),
+    );
+  }
+  if (duplicate && duplicate.noul >= 0.55) {
+    const span = spanForDimension("skills", sections) ?? fallbackSpan(sections);
+    out.push(
+      suggestion("skill-duplicate", "The skills list repeats a token. Keep one spelling.", span),
     );
   }
   return out;

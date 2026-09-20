@@ -11,8 +11,9 @@ import {
 } from "../shared/rate-limit.ts";
 import { allowCorsOrigin } from "./cors.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
-import { MemoryRateLimiter, EnvRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
-import { createD1Stores } from "./storage/d1.ts";
+import { EnvRateLimiter, MemoryRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
+import { createD1Stores, D1VisitorStore } from "./storage/d1.ts";
+import { KvVisitorStore } from "./storage/kv.ts";
 import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
 import { ensureD1Schema } from "./storage/schema.ts";
 import type { ReviewStores, VisitorStore } from "./storage/types.ts";
@@ -38,6 +39,59 @@ type EnvRuntime = {
 };
 
 const runtimeByEnv = new WeakMap<object, Promise<EnvRuntime>>();
+
+/** Browser + CDN cache for the public count. Writes stay unique and uncached. */
+export const VISITOR_COUNT_CACHE_CONTROL =
+  "public, max-age=30, s-maxage=60, stale-while-revalidate=300";
+export const VISITOR_COUNT_CDN_CACHE_CONTROL = "public, max-age=60";
+export const VISITOR_WRITE_CACHE_CONTROL = "no-store";
+
+const VISITOR_COUNT_CACHE_PATH = "/api/visitors";
+
+function visitorCountCacheKey(request: Request): Request {
+  return new Request(new URL(VISITOR_COUNT_CACHE_PATH, request.url), { method: "GET" });
+}
+
+async function matchVisitorCountCache(request: Request): Promise<Response | undefined> {
+  if (typeof caches === "undefined") {
+    return undefined;
+  }
+  try {
+    return (await caches.default.match(visitorCountCacheKey(request))) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storeVisitorCountCache(c: Context<AppEnv>, response: Response): void {
+  if (typeof caches === "undefined") {
+    return;
+  }
+  const put = caches.default.put(visitorCountCacheKey(c.req.raw), response.clone());
+  try {
+    c.executionCtx.waitUntil(put);
+  } catch {
+    void put;
+  }
+}
+
+async function bustVisitorCountCache(request: Request): Promise<void> {
+  if (typeof caches === "undefined") {
+    return;
+  }
+  try {
+    await caches.default.delete(visitorCountCacheKey(request));
+  } catch {
+    // Cache API is optional in tests and some runtimes.
+  }
+}
+
+function setVisitorCountCacheHeaders(c: Context<AppEnv>): void {
+  c.header("Cache-Control", VISITOR_COUNT_CACHE_CONTROL);
+  c.header("CDN-Cache-Control", VISITOR_COUNT_CDN_CACHE_CONTROL);
+  c.header("Cloudflare-CDN-Cache-Control", VISITOR_COUNT_CDN_CACHE_CONTROL);
+  c.header("Vary", "Accept-Encoding");
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -99,11 +153,25 @@ function isVisitorId(value: string): boolean {
   return /^[A-Za-z0-9._-]{8,128}$/.test(value);
 }
 
-export function createStores(env: CloudflareBindings): ReviewStores {
-  if (env.DB) {
-    return createD1Stores(env.DB);
+function createVisitorStore(env: CloudflareBindings): VisitorStore {
+  if (env.VISITORS) {
+    const seedCount = env.DB
+      ? () => new D1VisitorStore(env.DB).count()
+      : undefined;
+    return new KvVisitorStore(env.VISITORS, seedCount);
   }
-  return createMemoryStores();
+  if (env.DB) {
+    return new D1VisitorStore(env.DB);
+  }
+  return new MemoryVisitorStore();
+}
+
+export function createStores(env: CloudflareBindings): ReviewStores {
+  const visitors = createVisitorStore(env);
+  if (env.DB) {
+    return { ...createD1Stores(env.DB), visitors };
+  }
+  return { ...createMemoryStores(), visitors };
 }
 
 function runtimeForEnv(env: CloudflareBindings): Promise<EnvRuntime> {
@@ -260,7 +328,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   });
 
   app.get("/api/visitors", async (c) => {
-    return c.json({ uniqueVisitors: await c.get("visitors").count() });
+    const cached = await matchVisitorCountCache(c.req.raw);
+    if (cached) {
+      return cached;
+    }
+    setVisitorCountCacheHeaders(c);
+    const response = c.json({ uniqueVisitors: await c.get("visitors").count() });
+    storeVisitorCountCache(c, response);
+    return response;
   });
 
   app.post("/api/visitors", async (c) => {
@@ -269,6 +344,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const visitorId =
       fromCookie && isVisitorId(fromCookie) ? fromCookie : crypto.randomUUID();
     const recorded = await c.get("visitors").record(visitorId);
+    await bustVisitorCountCache(c.req.raw);
+    c.header("Cache-Control", VISITOR_WRITE_CACHE_CONTROL);
     c.header("Set-Cookie", visitorCookie(visitorId, c.req.url));
     return c.json({ uniqueVisitors: recorded.uniqueVisitors, visitorId });
   });

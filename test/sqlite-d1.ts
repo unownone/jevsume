@@ -108,6 +108,7 @@ function unlimitedRateLimit(): RateLimit {
 export function emptyD1Env(db: D1Database): CloudflareBindings {
   return {
     DB: db,
+    VISITORS: undefined as unknown as KVNamespace,
     TYPESAFE_MODEL: "jev-latest",
     TYPESAFE_BASE_URL: "https://api.typesafe.ai",
     RATE_LIMIT_RESUME_REVIEW: unlimitedRateLimit(),

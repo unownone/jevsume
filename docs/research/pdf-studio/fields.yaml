@@ -1,0 +1,53 @@
+topic: pdf-annotation-preview-ui
+fields:
+  - name: name
+    type: string
+    required: true
+  - name: category
+    type: string
+    required: true
+    description: Library, API, or UX pattern
+  - name: official_source
+    type: string
+    required: true
+    description: First-party URL that owns the claim
+  - name: what_it_is
+    type: string
+    required: true
+  - name: render_model
+    type: string
+    required: true
+    description: canvas, SVG, DOM text layer, WebGL, hybrid
+  - name: annotation_support
+    type: string
+    required: true
+    description: None, overlay-only, PDF annotation dicts, editor
+  - name: coordinate_space
+    type: string
+    required: true
+  - name: desktop_fit
+    type: string
+    required: true
+  - name: mobile_fit
+    type: string
+    required: true
+  - name: overlay_chat_fit
+    type: string
+    required: true
+    description: How review/chat can sit on the preview
+  - name: license
+    type: string
+    required: true
+  - name: already_in_repo
+    type: string
+    required: true
+  - name: risks
+    type: string
+    required: true
+  - name: recommendation
+    type: string
+    required: true
+    description: use, consider, avoid — with one-line why
+  - name: citations
+    type: string
+    required: true

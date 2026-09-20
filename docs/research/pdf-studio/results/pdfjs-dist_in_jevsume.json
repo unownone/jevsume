@@ -1,0 +1,22 @@
+{
+  "name": "pdfjs-dist in jevsume",
+  "category": "Library",
+  "official_source": "https://www.npmjs.com/package/pdfjs-dist",
+  "what_it_is": "The prebuilt npm distribution of Mozilla PDF.js. Jevsume already uses its display API for PDF text extraction and its packaged module worker through a Vite URL import.",
+  "render_model": "Currently text extraction only in jevsume; the installed API can add Canvas page rendering with PDFPageProxy.render, a DOM TextLayer, and an optional DOM/SVG AnnotationLayer.",
+  "annotation_support": "Current jevsume code has no annotation UI. Recommended extension is overlay-only application annotations in a separate SVG; optionally render PDF.js AnnotationLayer for existing PDF links/forms/annotations, without writing jevsume state into PDF dictionaries.",
+  "coordinate_space": "Use each PDFPageProxy's unscaled PDF page coordinates as persisted geometry and one PageViewport per render scale to derive canvas/CSS positions. Version 6.3.289 lacks convertToViewportRectangle; call convertToViewportPoint for both corners and normalize bounds.",
+  "desktop_fit": "Strong: the dependency and worker setup already exist, so a custom React page component needs page.render lifecycle, viewport sizing, layer containers, and cancellation rather than a second PDF SDK.",
+  "mobile_fit": "Good [uncertain]: responsive viewport scaling uses the same APIs, but this task did not benchmark large resumes or verify touch/pinch interaction on target devices.",
+  "overlay_chat_fit": "Strong: preserve PDF page coordinates for anchors and render boxes, pins, selected states, and chat triggers in an SVG sibling layer sharing the active PageViewport.",
+  "license": "Apache License 2.0, inherited from Mozilla PDF.js.",
+  "already_in_repo": "Yes: package.json declares ^6.3.289. src/lib/extract.ts imports pdfjs-dist and pdf.worker.min.mjs?url, assigns GlobalWorkerOptions.workerSrc, loads ArrayBuffer data, calls getPage/getTextContent, and joins TextItem.str values.",
+  "risks": "The caret permits upgrades with API-minor changes; flattening items with inserted spaces loses exact page/item offset correspondence; layers require matching CSS; React rerenders must cancel stale RenderTasks; native AnnotationLayer behavior should not be confused with jevsume's application overlay.",
+  "recommendation": "use — pin or deliberately test the 6.3 API during implementation, reuse the existing worker configuration, add canvas and structured text-content paths, and persist custom overlay state outside the PDF.",
+  "citations": "https://www.npmjs.com/package/pdfjs-dist ; https://mozilla.github.io/pdf.js/examples/ ; https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html ; https://github.com/mozilla/pdf.js/blob/v6.3.289/src/display/worker_options.js ; https://github.com/mozilla/pdf.js/blob/v6.3.289/src/display/page_viewport.js ; https://github.com/mozilla/pdf.js/blob/v6.3.289/src/display/text_layer.js ; https://github.com/mozilla/pdf.js/blob/v6.3.289/web/annotation_layer_builder.js ; https://github.com/mozilla/pdf.js/pull/21426 ; file:///workspace/package.json ; file:///workspace/src/lib/extract.ts",
+  "uncertain": [
+    "The lockfile-resolved installed version was not inspected because dependencies were not present in node_modules during this research; package.json requests ^6.3.289 and npm identifies 6.3.289 as the current package version.",
+    "Mobile render-memory and gesture performance require separate empirical validation.",
+    "The span-to-glyph task must determine robust matching between flattened Jev text and page TextItems."
+  ]
+}

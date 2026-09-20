@@ -157,10 +157,17 @@ export async function runReview(
   return parseJson(response);
 }
 
+export async function fetchVisitorCount(): Promise<number> {
+  const response = await fetch("/api/visitors");
+  const body = (await parseJson(response)) as { uniqueVisitors: number };
+  return body.uniqueVisitors;
+}
+
 export async function recordVisitor(): Promise<{ uniqueVisitors: number; visitorId: string }> {
   const response = await fetch("/api/visitors", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    cache: "no-store",
   });
   return parseJson(response);
 }

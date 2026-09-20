@@ -62,6 +62,30 @@ function choice(instructions: string, criteria: Record<string, string>): ChoiceQ
   return { type: "choice", instructions, criteria };
 }
 
+/**
+ * Honesty / “is this resume true” cannot be answered from the page.
+ * Do not add trustworthiness or truthfulness questions to proctoring.
+ * Validity is parser/ATS structure. Evidence is numbered or named claims.
+ */
+export const LEADERSHIP_VERBS = [
+  "led",
+  "managed",
+  "headed",
+  "directed",
+  "mentored",
+  "coached",
+  "hired",
+  "staffed",
+  "supervised",
+  "oversaw",
+] as const;
+
+export const LEADERSHIP_REPEAT_CRITERIA: Record<string, string> = {
+  none: `No closed-set leadership verbs (${LEADERSHIP_VERBS.join(", ")}) appear.`,
+  once: "Each leadership verb from that closed set appears at most twice.",
+  repeated: "At least one leadership verb from that closed set appears three or more times.",
+};
+
 export function buildGeneralReviewQuestions(sectionIds: string[]): Questions {
   const questions: Questions = {
     wording: qualityScore(
@@ -97,6 +121,25 @@ export function buildGeneralReviewQuestions(sectionIds: string[]): Questions {
     weakest_dimension: choice(
       "Which dimension is the biggest ATS risk in `resume.text`?",
       WEAKEST_DIMENSION_CRITERIA,
+    ),
+    leadership_repeat: choice(
+      `Count closed-set leadership verbs in \`resume.text\` (${LEADERSHIP_VERBS.join(", ")}). Which bucket fits the highest single-verb count?`,
+      LEADERSHIP_REPEAT_CRITERIA,
+    ),
+    role_over_six: noul(
+      "Does any single role in `resume.sections` of kind experience contain more than six bullets or sentences?",
+      "At least one role has more than six bullets or sentences.",
+      "No role exceeds six bullets or sentences.",
+    ),
+    skill_unproven: noul(
+      "Are there skill tokens listed in a skills section of `resume.text` that never appear in experience bullets?",
+      "At least one listed skill token is absent from experience bullets.",
+      "Every listed skill token also appears in experience, or there is no skills list.",
+    ),
+    skill_duplicate: noul(
+      "Does the skills list in `resume.text` repeat the same token more than once?",
+      "A skill token is listed more than once.",
+      "Each skill token appears at most once, or there is no skills list.",
     ),
   };
 

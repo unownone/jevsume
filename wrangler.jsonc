@@ -29,6 +29,11 @@
       "migrations_dir": "migrations"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "VISITORS"
+    }
+  ],
   "ratelimits": [
     {
       "name": "RATE_LIMIT_RESUME_REVIEW",

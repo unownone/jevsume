@@ -14,6 +14,7 @@ import { ReviewMeta } from "./components/ReviewMeta.tsx";
 import {
   RateLimitError,
   createPersona,
+  fetchVisitorCount,
   listJobPersonas,
   recordVisitor,
   runReview,
@@ -107,6 +108,9 @@ export default function App() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
+    void fetchVisitorCount()
+      .then(setVisitors)
+      .catch(() => undefined);
     void recordVisitor()
       .then((result) => {
         setVisitors(result.uniqueVisitors);

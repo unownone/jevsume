@@ -1,0 +1,22 @@
+{
+  "name": "PDF annotation dictionaries",
+  "category": "Spec",
+  "official_source": "https://opensource.adobe.com/dc-acrobat-sdk-docs/standards/pdfstandards/pdf/PDF32000_2008.pdf",
+  "what_it_is": "ISO 32000-1:2008 objects associated with locations on PDF pages. A page Annots array references annotation dictionaries; common fields include Subtype, Rect, Contents, name, modification date, flags, and optional appearance streams.",
+  "render_model": "Viewer-native PDF objects. Conforming readers interpret annotation dictionaries and may render built-in appearances or an annotation's appearance stream over page content.",
+  "annotation_support": "Native PDF markup. Highlight, Underline, Squiggly, and StrikeOut text-markup annotations require QuadPoints; markup dictionaries can carry author, pop-up, opacity, rich text, creation date, subject, and threaded reply links through IRT and RT.",
+  "coordinate_space": "Rect and QuadPoints use default PDF user space. Text-markup QuadPoints contain 8 times n numbers for quadrilaterals around words or contiguous word groups; an appearance stream can take precedence over QuadPoints.",
+  "desktop_fit": "Useful only for an explicit annotated-copy export or for displaying annotations already in the PDF. Native viewer appearance and interaction behavior can vary and does not replace Jevsume's application workflow.",
+  "mobile_fit": "Viewer-dependent. PDF-native annotations can travel with an exported file, but touch targets, pop-ups, replies, and appearances are controlled by each mobile PDF reader rather than Jevsume.",
+  "overlay_chat_fit": "Poor for the default live product because writing threads into IRT and RT relationships changes the PDF and constrains application metadata. Stronger as a deliberately requested interoperability export.",
+  "license": "PDF 32000-1:2008 is a document-format standard published by ISO and hosted by Adobe; it is not a software library dependency. Implementations must observe the standard document's stated terms.",
+  "already_in_repo": "No PDF mutation or annotation-dictionary writer is present. pdfjs-dist can read/render PDF annotations, while Jevsume's findings currently remain JSON text spans.",
+  "risks": "Adding dictionaries, even incrementally, creates a changed PDF artifact; appearance streams may override geometry; viewer behavior differs; replies must be on the same page under the ISO model; permissions and digital signatures require special handling; silently editing an upload violates the product constraint.",
+  "recommendation": "avoid for default storage — keep pins, regions, threads, and triggers in a non-mutating application overlay; only create a new, clearly labeled annotated PDF copy through a future explicit export flow.",
+  "citations": "https://opensource.adobe.com/dc-acrobat-sdk-docs/standards/pdfstandards/pdf/PDF32000_2008.pdf (clauses 12.5.2, 12.5.5, 12.5.6.2, and 12.5.6.10; Tables 164, 170, and 179) ; https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html ; file:///workspace/src/lib/api.ts",
+  "uncertain": [
+    "No annotated-copy export requirement is currently specified, so PDF-writing library selection and cross-viewer conformance testing are out of scope.",
+    "The uploaded PDFs' permission flags, certification signatures, and document modification policies are unknown and would need explicit checks before any export implementation.",
+    "ISO 32000-2 may add or refine annotation details, but PDF 1.7 is sufficient to establish that native markup is embedded document state rather than a non-mutating overlay."
+  ]
+}
