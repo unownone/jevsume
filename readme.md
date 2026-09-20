@@ -15,6 +15,7 @@ Jev does not generate prose. Scores, verdicts, and probabilities come from Syste
 - Hono API on a Cloudflare Worker (`/api/*`)
 - **D1** for personas, resumes, and evaluation runs (in-memory fallback when the binding is absent)
 - **KV** for the unique visitor counter (edge reads + HTTP cache headers on `GET /api/visitors`)
+- **Workers Analytics Engine** (`ANALYTICS` → dataset `website_events`) for pageviews and UI clicks
 - Isolated JEV module: [`packages/jev`](packages/jev) — see [`docs/architecture-jev.md`](docs/architecture-jev.md)
 
 Every JEV call stores **resume**, **input state**, **prompt/questions**, and **raw + transformed output** so you can look up runs later and score prompt changes.
@@ -49,7 +50,9 @@ npx wrangler deploy
 
 Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` because `database_id` is omitted. Apply migrations once after the first successful deploy.
 
-`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), and a KV binding `VISITORS` for the visitor counter. Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
+`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), a KV binding `VISITORS` for the visitor counter, and an Analytics Engine dataset `website_events` (`ANALYTICS`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
+
+Website events are fire-and-forget `writeDataPoint()` calls. Each point is `blobs: [event_type, page, country]`, `doubles: [1]`, `indexes: [event_id]`. The Worker records a `pageview` for every `/api/*` request and accepts client events at `POST /api/events` (`pageview` on load, `click` on review / upload / demo / persona). Query with the Analytics Engine SQL API against `website_events`.
 
 Git deploys auto-provision the KV namespace for `VISITORS` because `id` is omitted, the same way D1 is provisioned. The unique count is a single KV key (`count`) plus per-visitor keys (`vid:<id>`). `GET /api/visitors` is cacheable (`Cache-Control` + `CDN-Cache-Control`); `POST /api/visitors` is `no-store` so uniqueness writes are not cached.
 
