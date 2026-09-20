@@ -64,7 +64,54 @@ select {
 .app {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 28px 20px 72px;
+  padding: 28px 20px 32px;
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 18px;
+  padding: 11px 18px calc(11px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: rgba(7, 7, 13, 0.88);
+  color: var(--muted);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.site-footer-credit {
+  margin: 0;
+}
+
+.site-footer a {
+  color: var(--muted);
+  text-decoration: none;
+  text-underline-offset: 3px;
+  transition: color 160ms ease;
+}
+
+.site-footer a:hover {
+  color: var(--gold);
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+
+.site-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.site-footer-links svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .topbar {
@@ -631,7 +678,16 @@ textarea {
 
 @media (max-width: 640px) {
   .app {
-    padding: 18px 14px 56px;
+    padding: 18px 14px 32px;
+  }
+
+  .site-footer {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .site-footer-links {
+    justify-content: center;
   }
 
   .topbar {

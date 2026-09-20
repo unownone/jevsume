@@ -18,6 +18,7 @@ import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
 import { linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { pdfBufferFromResumeText } from "./resume-pdf.ts";
+import { SiteFooter } from "../components/SiteFooter.tsx";
 import { DropGate } from "./DropGate.tsx";
 import { JobComposer } from "./JobComposer.tsx";
 import { Leader } from "./Leader.tsx";
@@ -650,6 +651,7 @@ export default function StudioApp() {
       ) : null}
 
       {error ? <p className="studio-error">{error}</p> : null}
+      <SiteFooter />
     </div>
   );
 }
