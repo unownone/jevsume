@@ -38,7 +38,7 @@ export function isPlausibleGlyph(box: PageBox): boolean {
 }
 
 export function isPlausibleBox(box: PageBox): boolean {
-  return box.w >= 0.4 && box.w <= 88 && box.h >= 0.35 && box.h <= 4.2 && box.x >= -1 && box.x <= 99 && box.y >= -1 && box.y <= 99;
+  return box.w >= 0.4 && box.w <= 98 && box.h >= 0.35 && box.h <= 4.2 && box.x >= -1 && box.x <= 99 && box.y >= -1 && box.y <= 99;
 }
 
 function medianY(items: GlyphBox[]): number {
@@ -47,7 +47,7 @@ function medianY(items: GlyphBox[]): number {
 }
 
 export function clusterLines(items: GlyphBox[]): GlyphBox[][] {
-  const sorted = [...items].sort((left, right) => left.y - right.y || left.x - right.x);
+  const sorted = [...items].sort((left, right) => left.page - right.page || left.y - right.y || left.x - right.x);
   const lines: GlyphBox[][] = [];
   for (const item of sorted) {
     const last = lines[lines.length - 1];

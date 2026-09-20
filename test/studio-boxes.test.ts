@@ -93,6 +93,10 @@ describe("isPlausibleBox", () => {
   it("rejects page-covering rectangles", () => {
     expect(isPlausibleBox({ page: 1, x: 4, y: 2, w: 90, h: 70 })).toBe(false);
   });
+
+  it("keeps full-width line-tight resume rows", () => {
+    expect(isPlausibleBox({ page: 1, x: 1.2, y: 22, w: 96.4, h: 1.5 })).toBe(true);
+  });
 });
 
 describe("clusterLines", () => {
@@ -216,5 +220,25 @@ describe("document analysis", () => {
     expect(score.jobsLine).toMatch(/cut some/);
     expect(score.rewrite).toBe("destack-skills");
     expect(score.rewriteLine).toMatch(/skills/i);
+  });
+
+  it("parses wide role rows and does not count wrapped continuations as extra bullets", () => {
+    const { score } = reviewFromGlyphs([
+      line(1, 4, "Work Experience", 6, 22),
+      line(1, 8, "QuillBot | Software Engineer | Payments & Growth | Full Time", 2, 96),
+      line(1, 12, "• Architected, built, and shipped QuillBot’s credit platform: Kafka", 2, 96),
+      line(1, 16, "consumers evaluate rate cards and pricing across wallets.", 4, 88),
+      line(1, 20, "• Engineered the PostgreSQL + Redis backend at 10M+ records/day.", 2, 96),
+      line(1, 24, "Mable GmbH | Full Time Jul 2023 – Sep 2025", 2, 96),
+      line(1, 28, "Software Engineer 2 Feb 2025 – Sep 2025", 2, 96),
+      line(1, 32, "• Built data ingestion pipelines in Go into ArangoDB.", 2, 96),
+      line(1, 36, "Skills", 6, 14),
+      line(1, 40, "Frameworks/Technologies Kafka, NestJS, Terraform, Kubernetes, FastAPI", 2, 96),
+    ]);
+    expect(score.jobsLine).toMatch(/QuillBot 2/);
+    expect(score.jobsLine).toMatch(/Software Engineer 2/);
+    expect(score.jobsLine).not.toMatch(/cut some/);
+    expect(score.skillsLine).toMatch(/kafka/i);
+    expect(score.skillsLine).not.toMatch(/missing kafka/);
   });
 });

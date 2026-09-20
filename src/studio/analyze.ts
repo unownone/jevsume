@@ -98,11 +98,26 @@ function expectedFromPersona(): string[] {
 }
 
 function isRoleLine(text: string): boolean {
-  return (
-    text.length > 18 &&
-    text.length < 140 &&
-    /\|/.test(text) &&
-    /(engineer|intern|full time|part[- ]time|software)/i.test(text)
+  const trimmed = text.trim();
+  if (trimmed.length < 12 || trimmed.length > 140) {
+    return false;
+  }
+  if (/^[•\-\u2022*]/.test(trimmed) || /@/.test(trimmed)) {
+    return false;
+  }
+  if (/\|/.test(trimmed) && /(engineer|intern|full[- ]time|part[- ]time|software)/i.test(trimmed)) {
+    return true;
+  }
+  return /^(software engineer|intern)\b/i.test(trimmed);
+}
+
+function isBulletLine(text: string): boolean {
+  const trimmed = text.trim();
+  if (/^[•\-\u2022*]/.test(trimmed)) {
+    return true;
+  }
+  return /^(built|shipped|architected|engineered|implemented|redesigned|re-architected|scaled|migrated|added|rewrote|reverse-engineered|led|managed|mentored|headed|directed|coached|hired|staffed|supervised|oversaw)\b/i.test(
+    trimmed,
   );
 }
 
@@ -116,6 +131,9 @@ function isHeader(text: string): boolean {
 }
 
 function isSkillsDump(text: string): boolean {
+  if (/^(languages|frameworks|databases|payments|technologies)\b/i.test(text) && text.includes(",")) {
+    return true;
+  }
   return text.includes(",") && tokensIn(text).length >= 3;
 }
 
@@ -142,7 +160,7 @@ export function analyzeDocument(lines: DocumentLine[]): DocumentAnalysis {
       jobs.push(current);
       continue;
     }
-    if (current && line.text.length > 28 && !isSkillsDump(line.text)) {
+    if (current && isBulletLine(line.text) && !isSkillsDump(line.text)) {
       current.bullets.push(line);
     }
   }
@@ -260,19 +278,21 @@ export function leadershipLine(analysis: DocumentAnalysis): string {
   if (analysis.leadershipTotal === 0) {
     return "No closed-set leadership verbs on the page.";
   }
+  const noun = analysis.leadershipTotal === 1 ? "verb" : "verbs";
   const counts = analysis.leadership.map((item) => `${item.word} ×${item.count}`).join(", ");
   const repeat = analysis.repeatedLeadership[0];
   if (repeat) {
-    return `${analysis.leadershipTotal} leadership verbs — ${counts}. “${repeat.word}” is the repeat; rotate later hits, do not invent adjectives.`;
+    return `${analysis.leadershipTotal} leadership ${noun} — ${counts}. “${repeat.word}” is the repeat; rotate later hits, do not invent adjectives.`;
   }
-  return `${analysis.leadershipTotal} leadership verbs — ${counts}. No verb repeats three times.`;
+  return `${analysis.leadershipTotal} leadership ${noun} — ${counts}. No verb repeats three times.`;
 }
 
 export function jobsLine(analysis: DocumentAnalysis): string {
-  if (analysis.jobs.length === 0) {
+  const jobs = analysis.jobs.filter((job) => job.bullets.length > 0);
+  if (jobs.length === 0) {
     return "No role blocks parsed.";
   }
-  return analysis.jobs
+  return jobs
     .map((job) => {
       const name = job.title.split("|")[0]?.trim() || "Role";
       const extra = job.bullets.length >= DENSE_BULLET_LIMIT ? "; cut some" : "";

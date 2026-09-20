@@ -219,6 +219,10 @@ function personaGaps(lines: DocumentLine[], whole: string, usedY: Set<string>): 
 function numberFindings(findings: OverlayFinding[]): OverlayFinding[] {
   return findings
     .sort((left, right) => {
+      const page = (left.box?.page ?? 0) - (right.box?.page ?? 0);
+      if (page !== 0) {
+        return page;
+      }
       const top = (left.box?.y ?? 0) - (right.box?.y ?? 0);
       if (top !== 0) {
         return top;
