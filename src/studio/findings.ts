@@ -429,29 +429,92 @@ const WAITING_SKILLS = "Skills score after the dump is judged.";
 const WAITING_REWRITE = "Suggestions arrive with recover points.";
 const WAITING_VERDICT = "Jev is scoring each section.";
 
+function walkScoreNodes(nodes: StudioScore["hierarchy"] | undefined): NonNullable<StudioScore["hierarchy"]> {
+  const out: NonNullable<StudioScore["hierarchy"]> = [];
+  const visit = (node: NonNullable<StudioScore["hierarchy"]>[number]) => {
+    out.push(node);
+    for (const child of node.children ?? []) {
+      visit(child);
+    }
+  };
+  for (const node of nodes ?? []) {
+    visit(node);
+  }
+  return out;
+}
+
+export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
+  const nodes = walkScoreNodes(score.hierarchy);
+  const scoredJobs = nodes.filter((node) => node.kind === "job" && node.status === "scored");
+  const skills = nodes.find((node) => node.kind === "skills");
+  const verbDims = scoredJobs.flatMap((node) =>
+    (node.dimensions ?? []).filter((dim) => /action verbs/i.test(dim.label)),
+  );
+
+  let { leadershipLine, jobsLine, skillsLine, rewriteLine } = score;
+
+  if (leadershipLine === WAITING_LEADERSHIP && verbDims.length > 0) {
+    const avg = verbDims.reduce((sum, dim) => sum + dim.score, 0) / verbDims.length;
+    const thin = verbDims.filter((dim) => dim.max > 0 && dim.score / dim.max < 0.75).length;
+    leadershipLine = `Action verbs ${avg.toFixed(1)} / 4 across ${verbDims.length} scored role${
+      verbDims.length === 1 ? "" : "s"
+    }${thin > 0 ? ` · ${thin} still thin` : ""}.`;
+  }
+
+  if (jobsLine === WAITING_JOBS && scoredJobs.length > 0) {
+    jobsLine = scoredJobs
+      .map((job) => `${job.title} ${Math.round(job.contribution ?? 0)}/${job.weight ?? 0}`)
+      .join(" · ");
+  }
+
+  if (skillsLine === WAITING_SKILLS && skills?.status === "scored") {
+    const dims = skills.dimensions ?? [];
+    const dump = dims.find((dim) => /dump/i.test(dim.label));
+    const proven = dims.find((dim) => /proven/i.test(dim.label));
+    const bits = [`${Math.round(skills.contribution ?? 0)} / ${skills.weight ?? 0}`];
+    if (dump) {
+      bits.push(`${dump.label} ${dump.score.toFixed(1)}/${dump.max}`);
+    }
+    if (proven) {
+      bits.push(`${proven.label} ${proven.score.toFixed(1)}/${proven.max}`);
+    }
+    skillsLine = bits.join(" · ");
+  }
+
+  const recover = (score.suggestions ?? []).reduce((sum, card) => sum + (card.recoverPoints ?? 0), 0);
+  if (rewriteLine === WAITING_REWRITE && score.suggestions.length > 0) {
+    rewriteLine = `${score.suggestions.length} suggestion${score.suggestions.length === 1 ? "" : "s"} · recover ${recover} point${
+      recover === 1 ? "" : "s"
+    }.`;
+  }
+
+  return { ...score, leadershipLine, jobsLine, skillsLine, rewriteLine };
+}
+
 export function decorateStudioScore(
   score: StudioScore,
   lines: DocumentLine[],
   findings: OverlayFinding[],
   target?: JobTarget,
 ): StudioScore {
+  let next = fillWaitingJudgeLines(score);
   if (lines.length === 0) {
-    return score;
+    return next;
   }
   const fromPage = scoreFromDocument(lines, findings, target);
-  const rewrite = score.suggestions.length > 0 ? overallRewrite(score.suggestions) : fromPage.rewrite;
+  const rewrite = next.suggestions.length > 0 ? overallRewrite(next.suggestions) : fromPage.rewrite;
   return {
-    ...score,
-    verdict: score.verdict === WAITING_VERDICT ? fromPage.verdict : score.verdict,
+    ...next,
+    verdict: next.verdict === WAITING_VERDICT ? fromPage.verdict : next.verdict,
     leadershipLine:
-      score.leadershipLine === WAITING_LEADERSHIP ? fromPage.leadershipLine : score.leadershipLine,
-    jobsLine: score.jobsLine === WAITING_JOBS ? fromPage.jobsLine : score.jobsLine,
-    skillsLine: score.skillsLine === WAITING_SKILLS ? fromPage.skillsLine : score.skillsLine,
-    rewriteLine: score.rewriteLine === WAITING_REWRITE ? rewriteLine(rewrite) : score.rewriteLine,
+      next.leadershipLine === WAITING_LEADERSHIP ? fromPage.leadershipLine : next.leadershipLine,
+    jobsLine: next.jobsLine === WAITING_JOBS ? fromPage.jobsLine : next.jobsLine,
+    skillsLine: next.skillsLine === WAITING_SKILLS ? fromPage.skillsLine : next.skillsLine,
+    rewriteLine: next.rewriteLine === WAITING_REWRITE ? rewriteLine(rewrite) : next.rewriteLine,
     rewrite,
-    strong: score.strong === "—" ? fromPage.strong : score.strong,
-    weak: score.weak === "—" ? fromPage.weak : score.weak,
-    targetFit: score.targetFit ?? fromPage.targetFit,
+    strong: next.strong === "—" ? fromPage.strong : next.strong,
+    weak: next.weak === "—" ? fromPage.weak : next.weak,
+    targetFit: next.targetFit ?? fromPage.targetFit,
   };
 }
 

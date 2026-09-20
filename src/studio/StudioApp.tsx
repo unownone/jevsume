@@ -15,7 +15,7 @@ import {
   presetById,
 } from "../../shared/resume-presets.ts";
 import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
-import { decorateStudioScore, linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
+import { decorateStudioScore, fillWaitingJudgeLines, linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { pdfBufferFromResumeText } from "./resume-pdf.ts";
 import { DropGate } from "./DropGate.tsx";
@@ -88,7 +88,7 @@ export default function StudioApp() {
     if (!next) {
       return null;
     }
-    if (liveScore && lines.length > 0) {
+    if (liveScore) {
       next = decorateStudioScore(next, lines, judged, jobTarget);
     }
     if (hasJobTarget(jobTarget)) {
@@ -756,7 +756,7 @@ function mergeLiveScore(current: StudioScore | null, patch: Partial<StudioScore>
     dimensions: [],
     suggestions: [],
   };
-  return {
+  return fillWaitingJudgeLines({
     ...base,
     ...patch,
     suggestions: patch.suggestions
@@ -765,7 +765,7 @@ function mergeLiveScore(current: StudioScore | null, patch: Partial<StudioScore>
     hierarchy: patch.hierarchy ?? base.hierarchy,
     telemetry: patch.telemetry ?? base.telemetry,
     value: patch.value ?? base.value,
-  };
+  });
 }
 
 function uniqueSuggestions(cards: StudioScore["suggestions"]): StudioScore["suggestions"] {

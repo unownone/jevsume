@@ -354,4 +354,76 @@ describe("document analysis", () => {
     expect(next.value).toBe(72);
     expect(next.noteCount).toBe(21);
   });
+
+  it("fills waiting judge lines from scored hierarchy even when glyph lines are empty", () => {
+    const live: StudioScore = {
+      value: 61,
+      verdict: "Jev is scoring each section.",
+      noteCount: 12,
+      validity: 40,
+      evidence: 55,
+      leadershipLine: "Waiting on section scores.",
+      jobsLine: "Roles appear as they score.",
+      skillsLine: "Skills score after the dump is judged.",
+      rewriteLine: "Suggestions arrive with recover points.",
+      rewrite: "none",
+      strong: "—",
+      weak: "—",
+      dimensions: [],
+      suggestions: [
+        {
+          id: "s1",
+          kind: "add-metric",
+          title: "Raise dump vs evidence",
+          detail: "Recover 6",
+          recoverPoints: 6,
+          box: null,
+        },
+      ],
+      hierarchy: [
+        {
+          id: "skills",
+          title: "Skills",
+          kind: "skills",
+          weight: 18,
+          score01: 0.5,
+          contribution: 9,
+          status: "scored",
+          dimensions: [
+            { id: "dump", label: "Dump vs evidence", score: 2.1, max: 4 },
+            { id: "proven", label: "Proven in work", score: 2.4, max: 4 },
+          ],
+          children: [],
+        },
+        {
+          id: "experience",
+          title: "Experience",
+          kind: "experience",
+          weight: 53,
+          score01: 0.6,
+          contribution: 32,
+          status: "pending",
+          children: [
+            {
+              id: "quillbot",
+              title: "QuillBot",
+              kind: "job",
+              weight: 12,
+              score01: 0.67,
+              contribution: 8,
+              status: "scored",
+              dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+              children: [],
+            },
+          ],
+        },
+      ],
+    };
+    const next = decorateStudioScore(live, [], []);
+    expect(next.leadershipLine).toMatch(/Action verbs/i);
+    expect(next.jobsLine).toMatch(/QuillBot/);
+    expect(next.jobsLine).not.toBe("Roles appear as they score.");
+    expect(next.skillsLine).toMatch(/Dump vs evidence|Proven in work/i);
+    expect(next.rewriteLine).toMatch(/recover 6/i);
+  });
 });
