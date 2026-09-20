@@ -2,9 +2,9 @@
 
 Branch: `cursor/resume-canvas-studio-0ba9`
 
-Task 1: dispatched (research — PDF.js preview + annotation)
-Task 2: dispatched (research — mobile overlay)
-Task 3: dispatched (research — span-to-region + overlay model)
-Task 4: dispatched (research-deep JSON survey)
+Task 1: complete (research — PDF.js preview + annotation; `python3` used to validate JSON)
+Task 2: complete (research — mobile overlay)
+Task 3: complete (research — span-to-region + overlay model)
+Task 4: complete (research-deep JSON survey, same agents as tasks 1–3)
 
 Implementation tasks: not started (waiting on design lock).
