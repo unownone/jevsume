@@ -31,6 +31,12 @@ body,
   min-height: 100%;
 }
 
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
 body {
   background:
     radial-gradient(1100px 520px at 8% -12%, rgba(232, 197, 114, 0.11), transparent 52%),
@@ -75,10 +81,14 @@ select {
   gap: 8px 18px;
   padding: 11px 18px calc(11px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
-  background: rgba(7, 7, 13, 0.88);
+  background: #07070d;
   color: var(--muted);
   font-size: 0.82rem;
   flex-shrink: 0;
+}
+
+#root > .site-footer {
+  margin-top: auto;
 }
 
 .site-footer-credit {

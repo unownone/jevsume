@@ -9,6 +9,8 @@
   --bounce: cubic-bezier(0.34, 1.45, 0.64, 1);
   --arrive: cubic-bezier(0.16, 1, 0.3, 1);
   min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
   position: relative;
