@@ -143,14 +143,14 @@ export default function StudioApp() {
   }, []);
 
   useEffect(() => {
-    if (scene !== "reviewed" || glyphs.length === 0) {
+    if (reading || scene !== "reviewed" || glyphs.length === 0) {
       return;
     }
     if (findings.some((item) => item.origin === "jev")) {
       return;
     }
     attachFromPage(glyphs);
-  }, [attachFromPage, findings, glyphs, scene]);
+  }, [attachFromPage, findings, glyphs, reading, scene]);
 
   async function onFiles(files: FileList | null) {
     const file = files?.[0];
@@ -171,6 +171,8 @@ export default function StudioApp() {
     setReading(true);
     setDrawMode(false);
     setError(null);
+    setFindings([]);
+    setActiveId(null);
     await new Promise((resolve) => window.setTimeout(resolve, 2100));
     const started = Date.now();
     while (glyphsRef.current.length === 0 && Date.now() - started < 2500) {

@@ -90,7 +90,7 @@ export function PageOverlay({
         }
         const active = finding.id === activeId;
         const hot = finding.id === hoveredId;
-        const pinLeft = Math.max(4.2, box.x + 1.4);
+        const pinLeft = Math.min(96.4, box.x + box.w + 1.8);
         return (
           <div
             key={finding.id}

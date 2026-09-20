@@ -541,6 +541,7 @@
   left: 0;
   right: 0;
   height: 18%;
+  z-index: 6;
   background: linear-gradient(to bottom, transparent, rgba(232, 197, 114, 0.38), transparent);
   pointer-events: none;
   animation: scan-page 2.05s var(--arrive) both;
@@ -553,6 +554,7 @@
   right: 12%;
   top: 42%;
   height: 2.5rem;
+  z-index: 7;
   display: grid;
   place-items: center;
   background: rgba(7, 7, 13, 0.82);
@@ -568,6 +570,7 @@
   left: 10px;
   top: 12%;
   bottom: 12%;
+  z-index: 6;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
@@ -1004,19 +1007,28 @@
 
   .stage.has-score,
   .stage.has-note,
-  .stage.has-score.has-note {
+  .stage.has-score.has-note,
+  .stage.has-score:not(.has-note),
+  .stage.has-note:not(.has-score) {
     grid-template-columns: 1fr;
+    place-items: start stretch;
   }
 
   .score-panel {
     position: static;
     animation: sheet-in 0.5s var(--bounce) both;
+    padding: 10px 12px;
+  }
+
+  .score-bars {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 14px;
   }
 
   .score-orb.is-lg {
-    width: 56px;
-    height: 56px;
-    font-size: 1.2rem;
+    width: 52px;
+    height: 52px;
+    font-size: 1.15rem;
   }
 
   .trigger-dock {

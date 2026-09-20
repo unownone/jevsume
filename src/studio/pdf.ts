@@ -15,7 +15,7 @@ type PdfTextItem = {
 };
 
 export async function loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
-  return pdfjs.getDocument({ data }).promise;
+  return pdfjs.getDocument({ data: data.slice(0) }).promise;
 }
 
 function isTextItem(item: unknown): item is PdfTextItem {
