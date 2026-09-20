@@ -14,6 +14,7 @@ import { ReviewMeta } from "./components/ReviewMeta.tsx";
 import {
   RateLimitError,
   createPersona,
+  fetchVisitorCount,
   listJobPersonas,
   recordVisitor,
   runReview,
@@ -109,6 +110,9 @@ export default function App() {
 
   useEffect(() => {
     const visitorId = loadVisitorId();
+    void fetchVisitorCount()
+      .then(setVisitors)
+      .catch(() => undefined);
     void recordVisitor(visitorId)
       .then((result) => {
         persistVisitorId(result.visitorId);

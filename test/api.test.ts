@@ -10,6 +10,8 @@ import { ReviewEngine } from "../worker/engine.ts";
 import { MemoryRateLimiter } from "../worker/rate-limit.ts";
 import { createMemoryStores } from "../worker/storage/memory.ts";
 import { D1_SCHEMA_STATEMENTS, ensureD1Schema } from "../worker/storage/schema.ts";
+import { VISITOR_COUNT_KEY } from "../worker/storage/kv.ts";
+import { createMemoryKv } from "./memory-kv.ts";
 import { createSqliteD1, emptyD1Env } from "./sqlite-d1.ts";
 
 function testApp() {
@@ -345,6 +347,92 @@ describe("Hono API", () => {
 
     const counted = await app.request("/api/visitors");
     expect((await counted.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(2);
+  });
+
+  it("serves visitor counts with shared cache headers and no cookies", async () => {
+    const app = testApp();
+    const res = await app.request("/api/visitors");
+    expect(res.status).toBe(200);
+    const cacheControl = res.headers.get("Cache-Control") ?? "";
+    expect(cacheControl).toMatch(/public/i);
+    expect(cacheControl).toMatch(/max-age=/i);
+    expect(cacheControl).toMatch(/s-maxage=/i);
+    expect(res.headers.get("CDN-Cache-Control") ?? "").toMatch(/max-age=/i);
+    expect(res.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  it("does not let unique visitor writes sit in HTTP caches", async () => {
+    const app = testApp();
+    const res = await app.request("/api/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: "no-cache-visitor" }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control") ?? "").toMatch(/no-store/i);
+  });
+
+  it("records unique visitors in KV when the binding is present", async () => {
+    const app = createApp();
+    const kv = createMemoryKv();
+    const db = createSqliteD1();
+    const env = { ...emptyD1Env(db), VISITORS: kv };
+
+    const first = await app.request(
+      "/api/visitors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "kv-visitor-one" }),
+      },
+      env,
+    );
+    expect(first.status).toBe(200);
+    expect((await first.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
+
+    const again = await app.request(
+      "/api/visitors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "kv-visitor-one" }),
+      },
+      env,
+    );
+    expect((await again.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
+
+    const second = await app.request(
+      "/api/visitors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "kv-visitor-two" }),
+      },
+      env,
+    );
+    expect((await second.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(2);
+
+    const counted = await app.request("/api/visitors", {}, env);
+    expect((await counted.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(2);
+
+    const d1Row = await db.prepare("SELECT COUNT(*) AS count FROM visitors").first<{ count: number }>();
+    expect(d1Row?.count ?? 0).toBe(0);
+  });
+
+  it("seeds the KV count from existing D1 visitors once", async () => {
+    const app = createApp();
+    const kv = createMemoryKv();
+    const db = createSqliteD1();
+    await ensureD1Schema(db);
+    await db
+      .prepare(`INSERT INTO visitors (id, created_at) VALUES (?, ?)`)
+      .bind("legacy-visitor", "2026-01-01T00:00:00.000Z")
+      .run();
+    const env = { ...emptyD1Env(db), VISITORS: kv };
+
+    const counted = await app.request("/api/visitors", {}, env);
+    expect((await counted.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
+    expect(await kv.get(VISITOR_COUNT_KEY)).toBe("1");
   });
 
   it("returns JSON 502 when TypeSafe HTTP fails", async () => {

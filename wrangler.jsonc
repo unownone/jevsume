@@ -28,5 +28,10 @@
       "database_name": "jevsume",
       "migrations_dir": "migrations"
     }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "VISITORS"
+    }
   ]
 }
