@@ -11,6 +11,7 @@ import { FindingsPanel } from "./components/FindingsPanel.tsx";
 import { PersonaControls } from "./components/PersonaControls.tsx";
 import { ResumeCanvas } from "./components/ResumeCanvas.tsx";
 import { ReviewMeta } from "./components/ReviewMeta.tsx";
+import { SiteFooter } from "./components/SiteFooter.tsx";
 import {
   RateLimitError,
   createPersona,
@@ -225,7 +226,8 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <>
+      <div className="app">
       <header className="topbar">
         <div className="brand">
           <img
@@ -421,6 +423,8 @@ export default function App() {
           )}
         </section>
       </div>
-    </div>
+      </div>
+      <SiteFooter />
+    </>
   );
 }
