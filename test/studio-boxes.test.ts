@@ -171,6 +171,19 @@ describe("findingsFromGlyphs", () => {
     expect(score.verdict.length).toBeGreaterThan(12);
     expect(score.noteCount).toBe(findings.length);
     expect(score.dimensions).toHaveLength(5);
+    expect(score.validity).toBeGreaterThanOrEqual(0);
+    expect(score.validity).toBeLessThanOrEqual(100);
+    expect(score.evidence).toBeGreaterThanOrEqual(0);
+    expect(score.suggestions.length).toBeGreaterThanOrEqual(3);
+    expect(score.strong.length).toBeGreaterThan(8);
+    expect(score.weak.length).toBeGreaterThan(8);
+    expect(score.leadershipLine.length).toBeGreaterThan(8);
+    expect(score.jobsLine).toMatch(/Quillbot|Mable/);
+    expect(score.skillsLine).toMatch(/listed|inferred/);
+    expect(score.rewriteLine.length).toBeGreaterThan(8);
+    expect(["destack-skills", "rotate-verb", "drop-bullet", "split-block", "destaff", "add-metric", "none"]).toContain(
+      score.rewrite,
+    );
   });
 
   it("does not fall back to Jane Doe demo copy", () => {
@@ -178,5 +191,30 @@ describe("findingsFromGlyphs", () => {
     expect(findings.some((item) => /jane doe|distributed systems engineer who ships/i.test(`${item.title} ${item.detail} ${item.quote ?? ""}`))).toBe(
       false,
     );
+  });
+});
+
+describe("document analysis", () => {
+  it("counts repeated leadership verbs and dense jobs", () => {
+    const { score } = reviewFromGlyphs([
+      line(1, 4, "Work Experience"),
+      line(1, 8, "Acme | Software Engineer | Full Time"),
+      line(1, 12, "Led the payments team through a Kafka cutover."),
+      line(1, 16, "Led the data team on the same Kafka cutover."),
+      line(1, 20, "Led the platform team after the Kafka cutover."),
+      line(1, 24, "Led on-call for the Kafka cutover."),
+      line(1, 28, "Led docs for the Kafka cutover."),
+      line(1, 32, "Led hiring for the Kafka cutover."),
+      line(1, 36, "Skills"),
+      line(1, 40, "Go, Go, Kafka, TypeScript"),
+    ]);
+    expect(score.suggestions.some((item) => item.kind === "rotate-verb")).toBe(true);
+    expect(score.suggestions.some((item) => item.kind === "drop-bullet")).toBe(true);
+    expect(score.suggestions.some((item) => item.kind === "destack-skills")).toBe(true);
+    expect(score.weak.toLowerCase()).toMatch(/led|dense|repeat/);
+    expect(score.leadershipLine).toMatch(/led ×6/);
+    expect(score.jobsLine).toMatch(/cut some/);
+    expect(score.rewrite).toBe("destack-skills");
+    expect(score.rewriteLine).toMatch(/skills/i);
   });
 });

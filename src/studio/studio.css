@@ -165,6 +165,8 @@
   animation: sheet-in 0.55s var(--bounce) both;
   position: sticky;
   top: 12px;
+  max-height: calc(100dvh - 8.5rem);
+  overflow: auto;
 }
 
 .score-panel-head {
@@ -194,6 +196,171 @@
   color: var(--gold);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+}
+
+.score-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.score-pair div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.score-pair strong {
+  display: block;
+  font-family: Syne, sans-serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-pair span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.judge-lines {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.judge-lines div {
+  margin: 0;
+}
+
+.judge-lines dt {
+  color: var(--gold);
+  font-size: 0.72rem;
+}
+
+.judge-lines dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.score-strong,
+.score-weak {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.score-weak {
+  color: var(--rose);
+}
+
+.suggestion-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.suggestion-list h3 {
+  margin: 0 0 8px;
+  font-family: Syne, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: -0.03em;
+}
+
+.suggestion-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.suggestion-card.is-on {
+  border-color: rgba(232, 197, 114, 0.55);
+  background: rgba(232, 197, 114, 0.08);
+}
+
+.suggestion-card input {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--gold);
+}
+
+.suggestion-card strong {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.suggestion-card em {
+  display: block;
+  font-style: normal;
+  color: var(--gold);
+  font-size: 0.7rem;
+  margin: 2px 0 4px;
+}
+
+.suggestion-detail {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.suggestion-card .linkish {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cyan);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.suggestion-list .enhance {
+  width: 100%;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.enhance {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enhance:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.enhance.is-armed {
+  border-color: rgba(232, 197, 114, 0.7);
+  color: var(--text);
+}
+
+.soon-tag {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  color: var(--muted);
 }
 
 .score-bars {
@@ -882,6 +1049,9 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(920px, calc(100vw - 32px));
   padding: 8px;
   background: #12121c;
   border: 1px solid var(--line);

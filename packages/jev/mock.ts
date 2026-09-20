@@ -7,6 +7,7 @@ import type {
   SystemOneRequest,
   SystemOneResult,
 } from "./types.ts";
+import { LEADERSHIP_VERBS } from "./questions.ts";
 import { assertNever } from "./types.ts";
 
 function clamp01(value: number): number {
@@ -97,7 +98,13 @@ function answerQuestion(
     }
     case "noul": {
       let noul = 0.42;
-      if (id.startsWith("has_summary")) {
+      if (id === "role_over_six") {
+        noul = countMatches(blob, /\n\s*[-*•]/g) > 6 ? 0.82 : 0.18;
+      } else if (id === "skill_unproven") {
+        noul = /skills/.test(blob) && !/experience[\s\S]{0,80}(python|kafka|golang|\bgo\b)/.test(blob) ? 0.7 : 0.22;
+      } else if (id === "skill_duplicate") {
+        noul = /(python.*){2,}|(kafka.*){2,}|(\bgo\b.*){2,}/.test(blob) ? 0.8 : 0.2;
+      } else if (id.startsWith("has_summary")) {
         noul = /summary|profile|objective/.test(blob) ? 0.86 : 0.18;
       } else if (id.startsWith("has_experience")) {
         noul = /experience|engineer|developer|manager/.test(blob) ? 0.9 : 0.2;
@@ -114,7 +121,15 @@ function answerQuestion(
     case "choice": {
       const options = Object.keys(question.criteria);
       let winner = options[0] ?? "other";
-      if (id === "weakest_dimension") {
+      if (id === "leadership_repeat") {
+        const peak = Math.max(
+          ...LEADERSHIP_VERBS.map((word) => countMatches(blob, new RegExp(`\\b${word}\\b`, "g"))),
+        );
+        winner = peak >= 3 ? "repeated" : peak > 0 ? "once" : "none";
+        if (!options.includes(winner)) {
+          winner = options[0] ?? "none";
+        }
+      } else if (id === "weakest_dimension") {
         winner = countMatches(blob, /\d+/g) < 2 ? "metrics" : "none";
         if (!options.includes(winner)) {
           winner = options[0] ?? "none";

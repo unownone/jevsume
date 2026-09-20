@@ -38,6 +38,7 @@ export default function StudioApp() {
   const [compact, setCompact] = useState(false);
   const [fromRect, setFromRect] = useState<DOMRect | null>(null);
   const [toRect, setToRect] = useState<DOMRect | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const noteRef = useRef<HTMLDivElement>(null);
   const markRef = useRef(1);
   const glyphsRef = useRef<GlyphBox[]>([]);
@@ -107,6 +108,7 @@ export default function StudioApp() {
     setDrawMode(false);
     setThreads({});
     setGlyphs([]);
+    setSelected([]);
   }, []);
 
   const loadDemo = useCallback(
@@ -140,6 +142,7 @@ export default function StudioApp() {
       ),
     );
     setActiveId(compactRef.current ? null : (reviewed.findings[0]?.id ?? null));
+    setSelected([]);
   }, []);
 
   useEffect(() => {
@@ -338,7 +341,16 @@ export default function StudioApp() {
       ) : null}
 
       <main className={`stage${active && !compact ? " has-note" : ""}${score ? " has-score" : ""}`}>
-        {score ? <ScorePanel score={score} /> : null}
+        {score ? (
+          <ScorePanel
+            score={score}
+            selected={selected}
+            onToggle={(id) => {
+              setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+            }}
+            onOpen={setActiveId}
+          />
+        ) : null}
         {scene === "empty" || !data ? (
           <DropGate hot={hot} onHot={setHot} onFiles={(files) => void onFiles(files)} onDemo={() => void loadDemo()} />
         ) : (
@@ -414,6 +426,17 @@ export default function StudioApp() {
           <button className={`primary tight${reading ? " is-busy" : ""}`} type="button" disabled={reading} onClick={() => void onReview()}>
             {reading ? "Reading…" : "Review with Jev"}
           </button>
+          {scene === "reviewed" ? (
+            <button
+              type="button"
+              className={`ghost tight enhance${selected.length > 0 ? " is-armed" : ""}`}
+              disabled
+              title="Coming soon"
+            >
+              {selected.length > 0 ? `Enhance ${selected.length}` : "Enhance resume"}
+              <span className="soon-tag">Coming soon</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
 

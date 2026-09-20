@@ -1,12 +1,17 @@
 import { clusterLines, isPlausibleBox, padBox, unionBoxes } from "./boxes.ts";
 import { DEMO_PERSONA } from "./demo.ts";
-import type { GlyphBox, OverlayFinding, PageBox, ScoreDimension, Severity, StudioScore } from "./types.ts";
-
-export type DocumentLine = {
-  page: number;
-  text: string;
-  box: NonNullable<ReturnType<typeof unionBoxes>>;
-};
+import {
+  analyzeDocument,
+  jobsLine,
+  leadershipLine,
+  overallRewrite,
+  rewriteLine,
+  skillsLine,
+  strongLine,
+  suggestionsFromAnalysis,
+  weakLine,
+} from "./analyze.ts";
+import type { DocumentLine, GlyphBox, OverlayFinding, PageBox, ScoreDimension, Severity, StudioScore } from "./types.ts";
 
 const FINDING_CAP = 28;
 
@@ -104,6 +109,7 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
       quote: text,
       needle: text.slice(0, 48),
       box,
+      rewriteKind: taught ? "none" : "destaff",
       rewrite: taught ? undefined : "Mentored 2 senior engineers on the Shopware pipeline; both shipped unattended after a quarter.",
     };
   }
@@ -127,6 +133,7 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
       quote: text,
       needle: text.slice(0, 48),
       box,
+      rewriteKind: "split-block",
       rewrite: clip(text, 110),
     };
   }
@@ -139,6 +146,7 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
       quote: text,
       needle: text.slice(0, 48),
       box,
+      rewriteKind: "destack-skills",
     };
   }
 
@@ -154,6 +162,7 @@ function judge(line: DocumentLine, whole: string): Omit<OverlayFinding, "id" | "
       quote: text,
       needle: text.slice(0, 48),
       box,
+      rewriteKind: severity === "works" ? "none" : "add-metric",
     };
   }
 
@@ -199,6 +208,7 @@ function personaGaps(lines: DocumentLine[], whole: string, usedY: Set<string>): 
         quote: experience.text,
         needle: experience.text.slice(0, 48),
         box: padBox(experience.box),
+        rewriteKind: "destaff",
         rewrite: "Mentored senior engineers on event-driven Go services already in production.",
       });
     }
@@ -263,11 +273,27 @@ export function scoreFromDocument(lines: DocumentLine[], findings: OverlayFindin
   const value = Math.round(
     ((wording * 0.2 + conciseness * 0.15 + structure * 0.2 + metrics * 0.25 + ats * 0.2) / 4) * 100,
   );
+  const analysis = analyzeDocument(lines);
+  const validity = Math.round(((structure + ats) / 8) * 100);
+  const evidenced = bullets.filter((line) => hasMetric(line.text) || /kafka|\bgo\b|postgres|redis|aws/i.test(line.text)).length;
+  const evidence = Math.round((evidenced / pool) * 100);
+  const suggestions = suggestionsFromAnalysis(lines, findings);
+  const rewrite = overallRewrite(suggestions);
   return {
     value,
     verdict: verdictFor(dimensions, findings),
     noteCount: findings.length,
+    validity,
+    evidence,
+    leadershipLine: leadershipLine(analysis),
+    jobsLine: jobsLine(analysis),
+    skillsLine: skillsLine(analysis),
+    rewriteLine: rewriteLine(rewrite),
+    rewrite,
+    strong: strongLine(lines),
+    weak: weakLine(analysis, findings),
     dimensions,
+    suggestions,
   };
 }
 

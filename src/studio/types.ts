@@ -20,6 +20,7 @@ export type OverlayFinding = {
   title: string;
   detail: string;
   rewrite?: string;
+  rewriteKind?: RewriteKind;
   quote?: string;
   needle: string;
   box: PageBox | null;
@@ -44,11 +45,48 @@ export type StudioScore = {
   value: number;
   verdict: string;
   noteCount: number;
+  /** Parser/ATS readability. Not a claim that the resume is true. */
+  validity: number;
+  /** Share of bullets with a number or a named system. Honesty is not proctorable. */
+  evidence: number;
+  leadershipLine: string;
+  jobsLine: string;
+  skillsLine: string;
+  rewriteLine: string;
+  rewrite: RewriteKind;
+  strong: string;
+  weak: string;
   dimensions: ScoreDimension[];
+  suggestions: SuggestionCard[];
 };
 
 export type PageMetrics = {
   page: number;
   width: number;
   height: number;
+};
+
+export type RewriteKind =
+  | "split-block"
+  | "add-metric"
+  | "destaff"
+  | "destack-skills"
+  | "drop-bullet"
+  | "rotate-verb"
+  | "none";
+
+export type SuggestionCard = {
+  id: string;
+  kind: RewriteKind;
+  title: string;
+  detail: string;
+  quote?: string;
+  findingId?: string;
+  box: PageBox | null;
+};
+
+export type DocumentLine = {
+  page: number;
+  text: string;
+  box: PageBox;
 };

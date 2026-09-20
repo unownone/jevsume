@@ -1,12 +1,16 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { formatJevScore, scoreTone } from "../../shared/format.ts";
+import { SuggestionList } from "./SuggestionList.tsx";
 import type { StudioScore } from "./types.ts";
 
 type ScorePanelProps = {
   score: StudioScore;
+  selected: string[];
+  onToggle: (id: string) => void;
+  onOpen?: (findingId: string) => void;
 };
 
-export function ScorePanel({ score }: ScorePanelProps) {
+export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProps) {
   const tone = scoreTone(score.value);
   const [shown, setShown] = useState(0);
 
@@ -41,6 +45,34 @@ export function ScorePanel({ score }: ScorePanelProps) {
           <p>{score.verdict}</p>
         </div>
       </div>
+      <div className="score-pair">
+        <div>
+          <strong>{score.validity}</strong>
+          <span>Validity</span>
+        </div>
+        <div>
+          <strong>{score.evidence}</strong>
+          <span>Evidence</span>
+        </div>
+      </div>
+      <dl className="judge-lines">
+        <div>
+          <dt>Leadership</dt>
+          <dd>{score.leadershipLine}</dd>
+        </div>
+        <div>
+          <dt>Roles</dt>
+          <dd>{score.jobsLine}</dd>
+        </div>
+        <div>
+          <dt>Skills</dt>
+          <dd>{score.skillsLine}</dd>
+        </div>
+        <div>
+          <dt>Rewrite</dt>
+          <dd>{score.rewriteLine}</dd>
+        </div>
+      </dl>
       <div className="score-bars">
         {score.dimensions.map((dimension, index) => (
           <div className="score-bar" key={dimension.id} style={{ "--i": index + 1 } as CSSProperties}>
@@ -56,9 +88,16 @@ export function ScorePanel({ score }: ScorePanelProps) {
           </div>
         ))}
       </div>
+      <p className="score-strong">
+        Strong: {score.strong}
+      </p>
+      <p className="score-weak">
+        Weak: {score.weak}
+      </p>
       <p className="score-count">
         {score.noteCount} {score.noteCount === 1 ? "note" : "notes"} on the page
       </p>
+      <SuggestionList cards={score.suggestions} selected={selected} onToggle={onToggle} onOpen={onOpen} />
     </aside>
   );
 }
