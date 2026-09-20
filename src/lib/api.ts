@@ -157,6 +157,12 @@ export async function runReview(
   return parseJson(response);
 }
 
+export async function fetchVisitorCount(): Promise<number> {
+  const response = await fetch("/api/visitors");
+  const body = (await parseJson(response)) as { uniqueVisitors: number };
+  return body.uniqueVisitors;
+}
+
 export async function recordVisitor(
   visitorId: string,
 ): Promise<{ uniqueVisitors: number; visitorId: string }> {
@@ -164,6 +170,7 @@ export async function recordVisitor(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ visitorId }),
+    cache: "no-store",
   });
   return parseJson(response);
 }
