@@ -34,5 +34,11 @@
       "binding": "VISITORS",
       "id": "0cc77268f61e4603ad63561901d0f38a"
     }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "website_events"
+    }
   ]
 }

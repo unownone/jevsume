@@ -9,6 +9,7 @@ import { OverlayNote } from "./OverlayNote.tsx";
 import { PdfStage } from "./PdfStage.tsx";
 import { ScorePanel } from "./ScorePanel.tsx";
 import "./studio.css";
+import { trackClick } from "../lib/events.ts";
 import type { ChatMessage, GlyphBox, OverlayFinding, PageBox, Scene } from "./types.ts";
 
 function sceneFromSearch(): Scene | null {
@@ -164,6 +165,7 @@ export default function StudioApp() {
       setError("Drop a PDF — the page is the canvas.");
       return;
     }
+    trackClick("/upload");
     await loadBuffer(await file.arrayBuffer(), file.name);
   }
 
@@ -171,6 +173,7 @@ export default function StudioApp() {
     if (!data) {
       return;
     }
+    trackClick("/review");
     setReading(true);
     setDrawMode(false);
     setError(null);
