@@ -1,0 +1,23 @@
+{
+  "name": "Pointer and pinch zoom overlays",
+  "category": "API",
+  "official_source": "https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events",
+  "what_it_is": "A web-platform interaction pattern combining Pointer Events, touch-action, CSS transforms, SVG/DOM hit targets, and PDF.js PageViewport coordinate conversion for a zoomable PDF stage.",
+  "render_model": "Hybrid: PDF.js canvas for paper; co-registered SVG and optional semantic DOM controls for annotations; untransformed DOM/top-layer chrome for review cards, sheets, and dialogs.",
+  "annotation_support": "Overlay-only. Pins, regions, threads, and triggers are application data and are not written into PDF annotation dictionaries.",
+  "coordinate_space": "Persist page number plus unscaled PDF user-space points/rectangles. Project through the current PDF.js PageViewport for rendering; invert the SVG screen CTM and then the PageViewport for input. Never persist CSS or canvas backing-store pixels.",
+  "desktop_fit": "Strong. Mouse, pen, touch, and trackpad can share Pointer Events; selected regions can open a non-modal floating card clamped to the untransformed stage while the paper remains visible.",
+  "mobile_fit": "Strong with deliberate gesture arbitration. Track pointerId values for custom two-finger document zoom, use pointer capture for drags, set touch-action only on the custom gesture surface, and show selected findings in a peek/expand bottom sheet sized against the visual viewport.",
+  "overlay_chat_fit": "Strong. Pins and highlights transform with the paper; review/chat chrome stays outside the transformed wrapper. Use a desktop floating popover-style card, a phone bottom sheet, and a modal dialog only for focused composition or confirmation.",
+  "license": "Web platform APIs have no application dependency license. The associated PDF.js renderer is Apache-2.0.",
+  "already_in_repo": "Partly: pdfjs-dist 6.3.289 is already a direct dependency. Pointer Events, SVG, Popover, dialog, DOMMatrix, and VisualViewport are browser APIs and require no package.",
+  "risks": "touch-action: none can inhibit browser zoom; pointercancel must reset gestures; iframe boundaries complicate pinch and hit-testing; independently transformed layers drift; transformed ancestors alter stacking and positioned descendants; Popover needs a fallback for older WebViews; visual-viewport and software-keyboard behavior must be tested on real phones.",
+  "recommendation": "Use — store annotations in PDF page user space, transform canvas and overlay together, invert the live matrix for input, and adapt only the chrome from desktop floating card to phone bottom sheet.",
+  "citations": "https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events ; https://developer.mozilla.org/en-US/docs/Web/CSS/touch-action ; https://developer.mozilla.org/en-US/docs/Web/CSS/pointer-events ; https://developer.mozilla.org/en-US/docs/Web/CSS/transform ; https://developer.mozilla.org/en-US/docs/Web/API/SVGGraphicsElement/getScreenCTM ; https://developer.mozilla.org/en-US/docs/Web/API/Document/elementFromPoint ; https://developer.mozilla.org/en-US/docs/Web/API/Popover_API ; https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog ; https://developer.mozilla.org/en-US/docs/Web/API/Visual_Viewport_API ; https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html ; https://mozilla.github.io/pdf.js/getting_started/ ; https://github.com/mozilla/pdf.js/issues/16328 ; https://github.com/mozilla/pdf.js/issues/19004",
+  "uncertain": [
+    "Real-device behavior for nested scrolling, iOS Safari pinch arbitration, the software keyboard, and safe-area insets requires prototype testing; documentation alone cannot settle interaction quality.",
+    "The minimum supported browser/WebView matrix is not specified, so the exact Popover fallback requirement is unknown.",
+    "The product has not yet fixed whether stored regions should preserve raw PDF user-space coordinates only or also cache normalized page fractions; raw PDF user space is recommended.",
+    "Final sheet snap heights and desktop card placement policy depend on the visual mock and should not be locked by this research task."
+  ]
+}

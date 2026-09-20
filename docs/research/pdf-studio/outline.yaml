@@ -1,0 +1,24 @@
+topic: pdf-annotation-preview-ui
+execution:
+  output_dir: ./docs/research/pdf-studio/results
+  items_per_agent: 2
+  batch_size: 3
+items:
+  - name: Mozilla PDF.js
+    category: Library
+    description: Mozilla PDF.js viewer, canvas renderer, text layer, annotation layer, and pdfjs-dist 6.x API for a custom React overlay.
+  - name: pdfjs-dist in jevsume
+    category: Library
+    description: How this repo already uses pdfjs-dist 6.3 for text extraction and what extra APIs are needed for page render plus glyph boxes.
+  - name: PDF.js text content transforms
+    category: API
+    description: getTextContent item.transform, viewport.convertToViewportRectangle, mapping PDF user space to CSS overlay boxes.
+  - name: Hypothesis PDF anchoring
+    category: UX pattern
+    description: How Hypothes.is anchors annotations on PDFs (selectors, positions) from first-party docs.
+  - name: PDF annotation dictionaries
+    category: Spec
+    description: ISO 32000 markup annotations vs a non-mutating overlay layer; whether we should write into the PDF.
+  - name: Pointer and pinch zoom overlays
+    category: API
+    description: MDN Pointer Events, touch-action, and hit-testing an SVG overlay on a transformed canvas for mobile.
