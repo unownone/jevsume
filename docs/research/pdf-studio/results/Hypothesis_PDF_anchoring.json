@@ -1,0 +1,22 @@
+{
+  "name": "Hypothesis PDF anchoring",
+  "category": "UX pattern",
+  "official_source": "https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/pdf.ts",
+  "what_it_is": "Hypothes.is client logic for describing and re-anchoring PDF text selections and manual shapes. Current source combines quote, position, and page selectors for text, and page plus PDF-user-space shape selectors for regions or points.",
+  "render_model": "Hybrid PDF.js integration: extracted page text supports search and position anchoring; the PDF.js DOM text layer supplies ranges and highlights; shape anchors are converted between PDF user space and normalized page-relative viewport coordinates.",
+  "annotation_support": "Application overlay and remote annotation model. Text anchors use TextQuoteSelector, TextPositionSelector, and PageSelector; current shape tools use PageSelector plus ShapeSelector rather than writing ISO 32000 annotation dictionaries into the PDF.",
+  "coordinate_space": "TextPositionSelector uses UTF-16 offsets in document textContent. PageSelector uses a zero-based page index. ShapeSelector uses natural PDF user-space points with a bottom-left origin, anchored to a page, and may retain the page view box.",
+  "desktop_fit": "Strong as an anchoring reference: try position first, verify the exact quote, fall back to quote and context matching, and translate extracted-text offsets to rendered text-layer offsets.",
+  "mobile_fit": "Good as a data-model reference because selectors do not depend on desktop CSS pixels. Hypothesis client interaction details are not a direct mobile UI prescription for Jevsume.",
+  "overlay_chat_fit": "Strong: selector-backed anchors remain separate from annotation bodies and replies, allowing a pin or highlight to open a thread without modifying the source PDF.",
+  "license": "BSD 2-Clause for the Hypothesis client, with separately licensed subcomponents documented in its LICENSE file.",
+  "already_in_repo": "No Hypothesis dependency or selector model is present. Jevsume already has analogous flattened start/end finding spans, so it can adopt the redundant position-plus-quote anchoring pattern without embedding the Hypothesis client.",
+  "risks": "PDF text extraction order and normalization vary by viewer and PDF.js version; repeated short quotes can match the wrong occurrence; text-layer and extraction strings can differ; quote search across many pages can be expensive; current upstream main may differ from a deployed Hypothesis release.",
+  "recommendation": "consider — adopt the redundant selectors and safe fallback strategy, including page hints and Unicode/whitespace alignment, but keep a smaller Jevsume-owned model and mark ambiguous anchors orphaned.",
+  "citations": "https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/pdf.ts ; https://github.com/hypothesis/client/blob/main/src/types/api.ts ; https://github.com/hypothesis/client/commit/c78d0d8f459414eed3a2b46d049e1db096e4b24c ; https://github.com/hypothesis/client/issues/3720 ; https://github.com/hypothesis/client/issues/3737 ; https://github.com/hypothesis/client/blob/main/LICENSE ; file:///workspace/src/lib/api.ts ; file:///workspace/src/lib/extract.ts",
+  "uncertain": [
+    "The current source supports ShapeSelector, while the older PDF-region design issue says bounding boxes were not captured as of January 2024; deployed versions may lag current main.",
+    "Jevsume has not specified how much prefix and suffix context to store or the confidence threshold for accepting a quote fallback.",
+    "Cross-viewer portability of PDF text quote and position selectors remains inherently document-dependent."
+  ]
+}

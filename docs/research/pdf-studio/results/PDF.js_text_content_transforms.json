@@ -1,0 +1,22 @@
+{
+  "name": "PDF.js text content transforms",
+  "category": "API",
+  "official_source": "https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html",
+  "what_it_is": "PDF.js APIs and layout code for extracting page text runs and projecting their PDF-space transforms into a rendered page viewport. TextContent items expose strings, direction, transform, width, height, font name, and end-of-line hints, but not guaranteed per-glyph boxes.",
+  "render_model": "Hybrid: getTextContent returns structured text runs; PageViewport maps PDF coordinates to viewport coordinates; TextLayer creates positioned and scaled DOM spans over the canvas.",
+  "annotation_support": "Geometry source only for this use case. It can support an application-owned SVG/DOM overlay, but getTextContent itself does not create or persist annotations.",
+  "coordinate_space": "TextItem.transform describes a text run in PDF-derived coordinates. PageViewport applies view box, userUnit, scale, rotation, offsets, and the Y-axis flip. Jevsume should normalize resulting top-left viewport rectangles to page fractions for its overlay and optionally retain PDF user-space rectangles for interoperability.",
+  "desktop_fit": "Strong: render the PDF.js TextLayer from the same TextContent used to build an extraction ledger, translate Jev UTF-16 intervals to text-node intervals, and use DOM Range client rectangles for precise visual sub-ranges.",
+  "mobile_fit": "Good: normalized page rectangles are independent of CSS size and can be projected onto responsive pages. Text layers for off-screen pages should be virtualized to control DOM and memory cost.",
+  "overlay_chat_fit": "Strong: one finding can resolve to multiple normalized PageBox regions, with a separate normalized pin and thread trigger rendered in a sibling overlay above the page.",
+  "license": "Apache License 2.0 as part of Mozilla PDF.js.",
+  "already_in_repo": "Yes. pdfjs-dist is already used by src/lib/extract.ts, but current extraction discards TextItems after joining every item with a synthetic space and every page with a newline; it does not retain an offset-to-item ledger or geometry.",
+  "risks": "TextItem boundaries are heuristic and are not words or glyphs; proportional fonts, ligatures, combining marks, RTL or vertical writing, and rotations make equal-width character interpolation approximate. Current synthetic separators do not correspond to PDF geometry. Scanned PDFs may have no text layer.",
+  "recommendation": "use — retain TextContent and an exact extraction ledger, prefer TextLayer DOM Range rectangles for partial runs, normalize boxes to page space, and mark run-level interpolation as approximate.",
+  "citations": "https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html ; https://mozilla.github.io/pdf.js/api/draft/api.js.html ; https://github.com/mozilla/pdf.js/blob/master/src/display/text_layer.js ; https://github.com/mozilla/pdf.js/blob/master/src/display/page_viewport.js ; https://github.com/mozilla/pdf.js/issues/13047 ; https://github.com/mozilla/pdf.js/issues/7996 ; https://github.com/mozilla/pdf.js/blob/master/LICENSE ; file:///workspace/src/lib/extract.ts ; file:///workspace/src/lib/annotate.ts ; file:///workspace/src/lib/api.ts",
+  "uncertain": [
+    "The exact Jev offset unit is inferred to be JavaScript UTF-16 code units from current String.slice usage; this should be made an explicit API contract.",
+    "DOM Range rectangles need fixture testing against pdfjs-dist 6.3.289 for ligatures, RTL, vertical text, and rotated pages.",
+    "A future PDF.js upgrade may change text-run segmentation or normalization, so anchors must be tied to an extraction-policy and document revision."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Mozilla PDF.js",
+  "category": "Library",
+  "official_source": "https://mozilla.github.io/pdf.js/",
+  "what_it_is": "Mozilla's general-purpose, web-standards-based PDF parsing and rendering project. Its display layer exposes document, page rendering, text-content, text-layer, and annotation-layer APIs without requiring the full viewer UI.",
+  "render_model": "Hybrid: PDFPageProxy.render paints page content to Canvas; TextLayer creates positioned transparent DOM text spans; AnnotationLayer creates positioned DOM/SVG/form elements for annotations represented by the PDF.",
+  "annotation_support": "Reads and displays existing PDF annotations through getAnnotations and AnnotationLayer, and has selected editor/save support through AnnotationStorage. For jevsume's custom review objects, use overlay-only SVG/DOM state rather than PDF annotation dictionaries.",
+  "coordinate_space": "PDF user space is exposed by PDFPageProxy.view; PageViewport transforms it to top-left viewport/canvas coordinates with scale, rotation, offsets, userUnit, and Y flip. In 6.3.289 convert rectangles with two convertToViewportPoint calls because convertToViewportRectangle was removed.",
+  "desktop_fit": "Strong: direct page-to-canvas rendering, HiDPI output scaling, selectable text layer, optional native annotation layer, and viewport transforms fit a custom desktop React preview.",
+  "mobile_fit": "Good [uncertain]: the same viewport/page-space model is usable at responsive scales, but gesture arbitration, render scheduling, memory limits, and transient pinch behavior require separate mobile validation.",
+  "overlay_chat_fit": "Strong: stack jevsume's SVG review layer as a sibling above the canvas/text/native-annotation layers, keep anchors in PDF page space, and project them through the current PageViewport.",
+  "license": "Apache License 2.0.",
+  "already_in_repo": "Yes. package.json declares pdfjs-dist ^6.3.289; src/lib/extract.ts configures the Vite-emitted worker URL, loads PDF bytes, calls getTextContent per page, and flattens TextItem.str values for Jev.",
+  "risks": "TextItem boundaries and normalized whitespace do not guarantee direct equality with Jev's flattened offsets; correct layer CSS and z-order are required; render tasks need cancellation/serialization; PDF.js AnnotationStorage is a custom format and is not a general programmatic PDF-annotation API.",
+  "recommendation": "use — retain PDF.js as the rendering and text-geometry engine, use its native annotation layer only for PDF-owned links/forms/annotations, and keep jevsume review/chat/triggers in a separate application SVG overlay.",
+  "citations": "https://mozilla.github.io/pdf.js/getting_started/ ; https://mozilla.github.io/pdf.js/examples/ ; https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFPageProxy.html ; https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib.html ; https://github.com/mozilla/pdf.js/blob/v6.3.289/src/display/page_viewport.js ; https://github.com/mozilla/pdf.js/blob/v6.3.289/src/display/text_layer.js ; https://github.com/mozilla/pdf.js/blob/v6.3.289/web/annotation_layer_builder.js ; https://github.com/mozilla/pdf.js/pull/21426 ; https://github.com/mozilla/pdf.js/issues/16168 ; https://github.com/mozilla/pdf.js/blob/v6.3.289/LICENSE ; file:///workspace/package.json ; file:///workspace/src/lib/extract.ts",
+  "uncertain": [
+    "Mobile performance and gesture behavior are not established by this desktop-focused task and need device-level research.",
+    "Reliable mapping from Jev character offsets to PDF.js TextItem geometry remains document-dependent and belongs to the span-to-glyph task."
+  ]
+}
