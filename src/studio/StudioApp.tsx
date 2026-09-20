@@ -15,7 +15,7 @@ import {
   presetById,
 } from "../../shared/resume-presets.ts";
 import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
-import { linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
+import { decorateStudioScore, linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { pdfBufferFromResumeText } from "./resume-pdf.ts";
 import { DropGate } from "./DropGate.tsx";
@@ -76,16 +76,20 @@ export default function StudioApp() {
   const active = findings.find((finding) => finding.id === activeId) ?? null;
   const score = useMemo(() => {
     let next: StudioScore | null = null;
+    const judged = findings.filter((item) => item.origin === "jev");
+    const lines = glyphs.length > 0 ? linesFromGlyphs(glyphs) : [];
     if (scene !== "reviewed") {
       next = liveScore;
     } else if (liveScore) {
       next = liveScore;
-    } else {
-      const judged = findings.filter((item) => item.origin === "jev");
-      next = judged.length > 0 ? scoreFromDocument(linesFromGlyphs(glyphs), judged, jobTarget) : null;
+    } else if (judged.length > 0) {
+      next = scoreFromDocument(lines, judged, jobTarget);
     }
     if (!next) {
       return null;
+    }
+    if (liveScore && lines.length > 0) {
+      next = decorateStudioScore(next, lines, judged, jobTarget);
     }
     if (hasJobTarget(jobTarget)) {
       return {

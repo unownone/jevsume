@@ -423,6 +423,38 @@ export function scoreFromFindings(findings: OverlayFinding[]): StudioScore {
   return scoreFromDocument([], findings);
 }
 
+const WAITING_LEADERSHIP = "Waiting on section scores.";
+const WAITING_JOBS = "Roles appear as they score.";
+const WAITING_SKILLS = "Skills score after the dump is judged.";
+const WAITING_REWRITE = "Suggestions arrive with recover points.";
+const WAITING_VERDICT = "Jev is scoring each section.";
+
+export function decorateStudioScore(
+  score: StudioScore,
+  lines: DocumentLine[],
+  findings: OverlayFinding[],
+  target?: JobTarget,
+): StudioScore {
+  if (lines.length === 0) {
+    return score;
+  }
+  const fromPage = scoreFromDocument(lines, findings, target);
+  const rewrite = score.suggestions.length > 0 ? overallRewrite(score.suggestions) : fromPage.rewrite;
+  return {
+    ...score,
+    verdict: score.verdict === WAITING_VERDICT ? fromPage.verdict : score.verdict,
+    leadershipLine:
+      score.leadershipLine === WAITING_LEADERSHIP ? fromPage.leadershipLine : score.leadershipLine,
+    jobsLine: score.jobsLine === WAITING_JOBS ? fromPage.jobsLine : score.jobsLine,
+    skillsLine: score.skillsLine === WAITING_SKILLS ? fromPage.skillsLine : score.skillsLine,
+    rewriteLine: score.rewriteLine === WAITING_REWRITE ? rewriteLine(rewrite) : score.rewriteLine,
+    rewrite,
+    strong: score.strong === "—" ? fromPage.strong : score.strong,
+    weak: score.weak === "—" ? fromPage.weak : score.weak,
+    targetFit: score.targetFit ?? fromPage.targetFit,
+  };
+}
+
 export function reviewFromGlyphs(glyphs: GlyphBox[], target?: JobTarget): { findings: OverlayFinding[]; score: StudioScore } {
   const lines = linesFromGlyphs(glyphs);
   const whole = lines.map((line) => line.text).join("\n");

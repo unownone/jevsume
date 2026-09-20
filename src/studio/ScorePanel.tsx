@@ -127,8 +127,13 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
             </label>
             <div className="track">
               <div
+                key={`${dimension.id}-${dimension.score}-${dimension.max}`}
                 className="fill"
-                style={{ "--p": dimension.max > 0 ? dimension.score / dimension.max : 0 } as CSSProperties}
+                style={
+                  {
+                    "--p": String(dimension.max > 0 ? Math.min(1, Math.max(0, dimension.score / dimension.max)) : 0),
+                  } as CSSProperties
+                }
               />
             </div>
           </div>

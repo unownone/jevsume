@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { formatJevScore } from "../shared/format.ts";
 import { boxForNeedle, boxesForLedgerRange, clusterLines, isPlausibleBox, padBox, unionBoxes } from "../src/studio/boxes.ts";
-import { findingsFromGlyphs, linesFromGlyphs, reviewFromGlyphs, scoreFromFindings } from "../src/studio/findings.ts";
-import type { GlyphBox } from "../src/studio/types.ts";
+import {
+  decorateStudioScore,
+  findingsFromGlyphs,
+  linesFromGlyphs,
+  reviewFromGlyphs,
+  scoreFromFindings,
+} from "../src/studio/findings.ts";
+import type { GlyphBox, StudioScore } from "../src/studio/types.ts";
 
 const glyphs: GlyphBox[] = [
   { page: 1, str: "Built", x: 10, y: 20, w: 8, h: 2 },
@@ -311,5 +317,41 @@ describe("document analysis", () => {
     expect(score.jobsLine).not.toMatch(/cut some/);
     expect(score.skillsLine).toMatch(/kafka/i);
     expect(score.skillsLine).not.toMatch(/missing kafka/);
+  });
+
+  it("fills live-score waiting copy from the page instead of leaving dashes", () => {
+    const glyphs = denseResume();
+    const { findings } = reviewFromGlyphs(glyphs);
+    const live: StudioScore = {
+      value: 72,
+      verdict: "Jev is scoring each section.",
+      noteCount: 21,
+      validity: 40,
+      evidence: 55,
+      leadershipLine: "Waiting on section scores.",
+      jobsLine: "Roles appear as they score.",
+      skillsLine: "Skills score after the dump is judged.",
+      rewriteLine: "Suggestions arrive with recover points.",
+      rewrite: "none",
+      strong: "—",
+      weak: "—",
+      dimensions: [
+        { id: "header", label: "Header", score: 4, max: 8 },
+        { id: "skills", label: "Skills", score: 17, max: 21 },
+        { id: "experience", label: "Experience", score: 46, max: 60 },
+        { id: "education", label: "Education", score: 10, max: 11 },
+      ],
+      suggestions: [],
+    };
+    const next = decorateStudioScore(live, linesFromGlyphs(glyphs), findings);
+    expect(next.leadershipLine).not.toBe("Waiting on section scores.");
+    expect(next.jobsLine).not.toBe("Roles appear as they score.");
+    expect(next.skillsLine).not.toBe("Skills score after the dump is judged.");
+    expect(next.rewriteLine).not.toBe("Suggestions arrive with recover points.");
+    expect(next.strong).not.toBe("—");
+    expect(next.weak).not.toBe("—");
+    expect(next.dimensions).toEqual(live.dimensions);
+    expect(next.value).toBe(72);
+    expect(next.noteCount).toBe(21);
   });
 });
