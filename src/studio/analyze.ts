@@ -1,5 +1,10 @@
 import { padBox } from "./boxes.ts";
-import { DEMO_PERSONA } from "./demo.ts";
+import {
+  composeJobDescription,
+  hasJobTarget,
+  jobTargetLabel,
+  type JobTarget,
+} from "../../shared/job-target.ts";
 import type { DocumentLine, OverlayFinding, RewriteKind, SuggestionCard } from "./types.ts";
 
 export const TECH_TOKENS = [
@@ -93,8 +98,11 @@ function tokensIn(text: string): string[] {
   return [...found];
 }
 
-function expectedFromPersona(): string[] {
-  return tokensIn(`${DEMO_PERSONA.title} ${DEMO_PERSONA.summary}`);
+function expectedFromTarget(target: JobTarget | undefined): string[] {
+  if (!hasJobTarget(target)) {
+    return [];
+  }
+  return tokensIn(composeJobDescription(target));
 }
 
 function isRoleLine(text: string): boolean {
@@ -137,7 +145,17 @@ function isSkillsDump(text: string): boolean {
   return text.includes(",") && tokensIn(text).length >= 3;
 }
 
-export function analyzeDocument(lines: DocumentLine[]): DocumentAnalysis {
+function findSkillsDump(lines: DocumentLine[]): DocumentLine | undefined {
+  const headerAt = lines.findIndex((line) => isHeader(line.text) && /skills/i.test(line.text));
+  if (headerAt >= 0) {
+    const underHeading = lines.slice(headerAt).find((line) => isSkillsDump(line.text));
+    return underHeading ?? lines[headerAt];
+  }
+  const dumps = lines.filter((line) => isSkillsDump(line.text));
+  return dumps[dumps.length - 1];
+}
+
+export function analyzeDocument(lines: DocumentLine[], target?: JobTarget): DocumentAnalysis {
   const whole = lines.map((line) => line.text).join("\n");
   const leadership: LeadershipCount[] = LEADERSHIP_WORDS.map((word) => {
     const matches = whole.match(new RegExp(`\\b${word}\\b`, "gi"));
@@ -187,7 +205,7 @@ export function analyzeDocument(lines: DocumentLine[]): DocumentAnalysis {
   }
 
   const inferredSkills = [...new Set(lines.filter((line) => !isSkillsDump(line.text)).flatMap((line) => tokensIn(line.text)))];
-  const expectedSkills = expectedFromPersona();
+  const expectedSkills = expectedFromTarget(target);
   const unprovenSkills = listedSkills.filter((token) => !inferredSkills.includes(token));
   const missingExpected = expectedSkills.filter((token) => !listedSkills.includes(token) && !inferredSkills.includes(token));
 
@@ -303,8 +321,8 @@ export function jobsLine(analysis: DocumentAnalysis): string {
 
 export function skillsLine(analysis: DocumentAnalysis): string {
   const parts = [
-    `listed ${analysis.listedSkills.length || "none"}`,
-    `inferred ${analysis.inferredSkills.length || "none"}`,
+    `listed ${analysis.listedSkills.join(", ") || "none"}`,
+    `inferred ${analysis.inferredSkills.join(", ") || "none"}`,
     `expected ${analysis.expectedSkills.join(", ") || "none"}`,
   ];
   if (analysis.duplicateSkills.length > 0) {
@@ -338,8 +356,12 @@ function card(
   };
 }
 
-export function suggestionsFromAnalysis(lines: DocumentLine[], findings: OverlayFinding[]): SuggestionCard[] {
-  const analysis = analyzeDocument(lines);
+export function suggestionsFromAnalysis(
+  lines: DocumentLine[],
+  findings: OverlayFinding[],
+  target?: JobTarget,
+): SuggestionCard[] {
+  const analysis = analyzeDocument(lines, target);
   const cards: SuggestionCard[] = [];
   const used = new Set<string>();
 
@@ -352,7 +374,9 @@ export function suggestionsFromAnalysis(lines: DocumentLine[], findings: Overlay
   }
 
   for (const repeat of analysis.repeatedLeadership) {
-    const line = lines.find((item) => new RegExp(`\\b${repeat.word}\\b`, "i").test(item.text));
+    const pattern = new RegExp(`\\b${repeat.word}\\b`, "i");
+    const hits = lines.filter((item) => pattern.test(item.text));
+    const line = hits[hits.length - 1];
     push(
       card(
         `rotate-${repeat.word}`,
@@ -377,7 +401,7 @@ export function suggestionsFromAnalysis(lines: DocumentLine[], findings: Overlay
   }
 
   if (analysis.duplicateSkills.length > 0) {
-    const dump = lines.find((line) => isSkillsDump(line.text));
+    const dump = findSkillsDump(lines);
     push(
       card(
         "dup-skills",
@@ -390,7 +414,7 @@ export function suggestionsFromAnalysis(lines: DocumentLine[], findings: Overlay
   }
 
   if (analysis.unprovenSkills.length > 0) {
-    const dump = lines.find((line) => isSkillsDump(line.text));
+    const dump = findSkillsDump(lines);
     push(
       card(
         "unproven-skills",
@@ -408,8 +432,8 @@ export function suggestionsFromAnalysis(lines: DocumentLine[], findings: Overlay
       card(
         "missing-expected",
         "add-metric",
-        "Persona tokens are absent",
-        `${DEMO_PERSONA.title} expects ${analysis.missingExpected.join(", ")}. The page never uses them.`,
+        "Listing tokens are absent",
+        `${jobTargetLabel(target)} expects ${analysis.missingExpected.join(", ")}. The page never uses them.`,
         experience,
       ),
     );

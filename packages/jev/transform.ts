@@ -101,7 +101,10 @@ function dimensionList(
 const EMPTY_TELEMETRY: ReviewTelemetry = {
   serverMs: 0,
   inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
   costUsd: 0,
+  requestCount: 0,
 };
 
 function suggestion(
@@ -309,10 +312,13 @@ function annotateSections(
 
 function coerceSectionKind(choice: string, fallback: SectionKind): SectionKind {
   switch (choice) {
+    case "header":
     case "summary":
     case "experience":
+    case "job":
     case "education":
     case "skills":
+    case "accolades":
     case "projects":
     case "other":
       return choice;
@@ -463,6 +469,7 @@ export function transformGeneralReview(input: {
       isDefault: true,
     },
     telemetry: input.telemetry ?? EMPTY_TELEMETRY,
+    hierarchy: [],
   };
 }
 
@@ -473,6 +480,7 @@ export function transformJobReview(input: {
   provider: ProviderId;
   resumeText?: string;
   telemetry?: ReviewTelemetry;
+  jobTarget?: ReviewResponse["jobTarget"];
 }): ReviewResponse {
   const { answers, model } = input.result;
   const scores = pickScores(answers, Object.keys(JOB_SCORE_WEIGHTS));
@@ -578,7 +586,9 @@ export function transformJobReview(input: {
       title: input.persona.title,
       isDefault: false,
     },
+    jobTarget: input.jobTarget,
     telemetry: input.telemetry ?? EMPTY_TELEMETRY,
+    hierarchy: [],
   };
 }
 

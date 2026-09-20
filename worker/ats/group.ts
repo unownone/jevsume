@@ -1,4 +1,5 @@
-import type { GroupedResume, ResumeFragment, ResumeSection, SectionKind } from "../../packages/jev/types.ts";
+import type { GroupedResume, HierarchyKind, ResumeFragment, ResumeSection, SectionKind } from "../../packages/jev/types.ts";
+import type { ProctorBlock } from "../../packages/jev/hierarchy.ts";
 
 const HEADING_MAP: { pattern: RegExp; kind: SectionKind; heading: string }[] = [
   { pattern: /^(summary|profile|objective)\b/i, kind: "summary", heading: "Summary" },
@@ -14,6 +15,11 @@ const HEADING_MAP: { pattern: RegExp; kind: SectionKind; heading: string }[] = [
     heading: "Skills",
   },
   { pattern: /^(projects|selected projects)\b/i, kind: "projects", heading: "Projects" },
+  {
+    pattern: /^(awards|honors|accolades|achievements|certifications)\b/i,
+    kind: "accolades",
+    heading: "Accolades",
+  },
 ];
 
 const BULLET = /^\s*[-*•–·]\s+/;
@@ -123,7 +129,111 @@ export function groupResumeText(text: string): GroupedResume {
     }
   }
 
+  promoteHeader(sections);
   return { text: textBody, sections };
+}
+
+function looksLikeName(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 3 || trimmed.length > 60) {
+    return false;
+  }
+  if (/@|https?:\/\//i.test(trimmed)) {
+    return false;
+  }
+  return /^[A-Z][\w.'-]+(?:\s+[A-Z][\w.'-]+){0,4}$/.test(trimmed);
+}
+
+function promoteHeader(sections: ResumeSection[]): void {
+  const first = sections[0];
+  if (!first || first.kind !== "other") {
+    return;
+  }
+  const lead = first.fragments.find((fragment) => fragment.kind !== "heading") ?? first.fragments[0];
+  if (lead && looksLikeName(lead.text)) {
+    first.kind = "header";
+    first.heading = "Header";
+  }
+}
+
+function isRoleLine(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 12 || trimmed.length > 160) {
+    return false;
+  }
+  if (/^[•\-\u2022*]/.test(trimmed) || /@/.test(trimmed)) {
+    return false;
+  }
+  if (/\|/.test(trimmed) && /(engineer|intern|full[- ]time|part[- ]time|software|manager|designer|analyst)/i.test(trimmed)) {
+    return true;
+  }
+  return /^(software engineer|intern|senior|staff|principal|manager)\b/i.test(trimmed);
+}
+
+export function buildProctorBlocks(text: string): ProctorBlock[] {
+  const grouped = groupResumeText(text);
+  const blocks: ProctorBlock[] = [];
+  let jobIndex = 0;
+  for (const section of grouped.sections) {
+    if (section.kind === "experience") {
+      const jobs = splitJobs(section);
+      if (jobs.length === 0) {
+        blocks.push(blockFromSection(section, section.kind, null));
+        continue;
+      }
+      for (const job of jobs) {
+        jobIndex += 1;
+        blocks.push({
+          ...job,
+          id: `job${jobIndex}`,
+          kindHint: "job",
+          parentHint: "experience",
+        });
+      }
+      continue;
+    }
+    blocks.push(blockFromSection(section, section.kind, null));
+  }
+  return blocks;
+}
+
+function blockFromSection(section: ResumeSection, kind: HierarchyKind, parentHint: "experience" | null): ProctorBlock {
+  return {
+    id: section.id,
+    kindHint: kind,
+    title: section.heading,
+    text: section.text,
+    start: section.start,
+    end: section.end,
+    line: section.line,
+    parentHint,
+  };
+}
+
+function splitJobs(section: ResumeSection): Array<Omit<ProctorBlock, "id">> {
+  const body = section.fragments.filter((fragment) => fragment.kind !== "heading");
+  const jobs: Array<Omit<ProctorBlock, "id">> = [];
+  let current: Omit<ProctorBlock, "id"> | null = null;
+  for (const fragment of body) {
+    if (isRoleLine(fragment.text)) {
+      current = {
+        kindHint: "job",
+        title: fragment.text.split("|")[0]?.trim() || fragment.text,
+        text: fragment.text,
+        start: fragment.start,
+        end: fragment.end,
+        line: fragment.line,
+        parentHint: "experience",
+      };
+      jobs.push(current);
+      continue;
+    }
+    if (current) {
+      current.text = `${current.text}\n${fragment.text}`;
+      current.end = fragment.end;
+    }
+  }
+  return jobs;
 }
 
 export function extractRequirementCandidates(jobDescription: string, limit = 24): string[] {

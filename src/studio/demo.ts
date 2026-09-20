@@ -5,6 +5,21 @@ export const DEMO_PERSONA = {
   summary: "Event-driven services in Go, Kafka in production, and someone who sets direction for seniors.",
 };
 
+export const DEMO_JOB_LISTING = {
+  jobTitle: "Staff Backend Engineer",
+  company: "Acme",
+  jobUrl: "",
+  jobText: `Staff Backend Engineer
+Acme is hiring someone who already owns event-driven services.
+
+Requirements
+- 5+ years building event-driven services in Go
+- Production Kafka or equivalent streaming experience
+- Mentors senior engineers and sets technical direction
+- Comfortable with Terraform and AWS
+`,
+};
+
 export const DEMO_FINDINGS: OverlayFinding[] = [
   {
     id: "summary-stake",

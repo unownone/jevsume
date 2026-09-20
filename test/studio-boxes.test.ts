@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatJevScore } from "../shared/format.ts";
-import { boxForNeedle, clusterLines, isPlausibleBox, padBox, unionBoxes } from "../src/studio/boxes.ts";
+import { boxForNeedle, boxesForLedgerRange, clusterLines, isPlausibleBox, padBox, unionBoxes } from "../src/studio/boxes.ts";
 import { findingsFromGlyphs, linesFromGlyphs, reviewFromGlyphs, scoreFromFindings } from "../src/studio/findings.ts";
 import type { GlyphBox } from "../src/studio/types.ts";
 
@@ -71,6 +71,32 @@ describe("boxForNeedle", () => {
 
   it("returns null when the needle is absent", () => {
     expect(boxForNeedle(glyphs, "Python")).toBeNull();
+  });
+
+  it("can pin the last visual occurrence instead of the first", () => {
+    const page: GlyphBox[] = [
+      { page: 1, str: "Led the payments cutover.", x: 8, y: 18, w: 70, h: 1.4 },
+      { page: 1, str: "Led hiring after the cutover.", x: 8, y: 72, w: 70, h: 1.4 },
+    ];
+    expect(boxForNeedle(page, "Led", { occurrence: "first" })?.y).toBe(18);
+    expect(boxForNeedle(page, "Led", { occurrence: "last" })?.y).toBe(72);
+  });
+
+  it("intersects a flattened ledger span with the runs it actually covers", () => {
+    const ledger = [
+      { flatStart: 0, flatEnd: 8, page: 1, str: "Jane Doe", box: { page: 1, x: 10, y: 4, w: 20, h: 2 } },
+      { flatStart: 9, flatEnd: 14, page: 1, str: "Skills", box: { page: 1, x: 10, y: 78, w: 12, h: 1.4 } },
+      {
+        flatStart: 15,
+        flatEnd: 40,
+        page: 1,
+        str: "Go, Kafka, TypeScript",
+        box: { page: 1, x: 10, y: 82, w: 60, h: 1.4 },
+      },
+    ];
+    const box = unionBoxes(boxesForLedgerRange(ledger, 15, 40));
+    expect(box?.y).toBe(82);
+    expect(box?.y).toBeGreaterThan(70);
   });
 });
 
@@ -160,7 +186,10 @@ describe("findingsFromGlyphs", () => {
   });
 
   it("returns a dense set of line-tight notes on a real resume page", () => {
-    const { findings, score } = reviewFromGlyphs(denseResume());
+    const { findings, score } = reviewFromGlyphs(denseResume(), {
+      jobTitle: "Staff Backend Engineer",
+      jobText: "- Production Kafka\n- Mentors senior engineers\n- Event-driven services in Go",
+    });
     expect(findings.length).toBeGreaterThanOrEqual(15);
     expect(findings.every((item) => item.box && isPlausibleBox(item.box))).toBe(true);
     expect(findings.every((item) => (item.box?.h ?? 99) <= 4.2)).toBe(true);
@@ -196,6 +225,24 @@ describe("findingsFromGlyphs", () => {
       false,
     );
   });
+
+  it("keeps a general review off a hardcoded job persona", () => {
+    const { findings, score } = reviewFromGlyphs(denseResume());
+    expect(findings.some((item) => /staff backend engineer/i.test(`${item.title} ${item.detail}`))).toBe(false);
+    expect(score.targetLabel).toBeUndefined();
+  });
+
+  it("rates the page against pasted job text", () => {
+    const { findings, score } = reviewFromGlyphs(denseResume(), {
+      jobTitle: "Staff Backend Engineer",
+      company: "Acme",
+      jobText: "- Production Kafka\n- Mentors senior engineers\n- Terraform and AWS",
+    });
+    expect(score.targetLabel).toMatch(/Staff Backend Engineer/);
+    expect(score.targetFit).toMatch(/listing skills/i);
+    expect(findings.some((item) => item.severity === "missing" && /mentor/i.test(item.detail))).toBe(true);
+    expect(score.skillsLine).toMatch(/kafka|aws|terraform/i);
+  });
 });
 
 describe("document analysis", () => {
@@ -220,6 +267,30 @@ describe("document analysis", () => {
     expect(score.jobsLine).toMatch(/cut some/);
     expect(score.rewrite).toBe("destack-skills");
     expect(score.rewriteLine).toMatch(/skills/i);
+    const rotate = score.suggestions.find((item) => item.kind === "rotate-verb");
+    expect(rotate?.box?.y).toBeGreaterThan(20);
+    const destack = score.suggestions.find((item) => item.kind === "destack-skills");
+    expect(destack?.box?.y).toBeGreaterThan(30);
+  });
+
+  it("pins skills and later leadership hits to the bottom of the page", () => {
+    const { score } = reviewFromGlyphs([
+      line(1, 4, "Imon Kalyan Roy"),
+      line(1, 8, "Staff Software Engineer"),
+      line(1, 12, "Work Experience"),
+      line(1, 16, "Acme | Software Engineer | Full Time"),
+      line(1, 20, "Led the first payments cutover on Kafka."),
+      line(1, 24, "Led the second payments cutover on Kafka."),
+      line(1, 28, "Led hiring for the payments cutover."),
+      line(1, 32, "Led docs for the payments cutover."),
+      line(1, 36, "Built Go, Kafka, and TypeScript services with a named metric of 2M events."),
+      line(1, 80, "Skills"),
+      line(1, 84, "Go, Go, Kafka, TypeScript, Python"),
+    ]);
+    const destack = score.suggestions.find((item) => item.kind === "destack-skills");
+    expect(destack?.box?.y).toBeGreaterThan(70);
+    const rotate = score.suggestions.find((item) => item.kind === "rotate-verb");
+    expect(rotate?.box?.y).toBeGreaterThan(24);
   });
 
   it("parses wide role rows and does not count wrapped continuations as extra bullets", () => {

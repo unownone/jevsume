@@ -1,13 +1,14 @@
-import type { DragEvent } from "react";
+import type { DragEvent, ReactNode } from "react";
 
 type DropGateProps = {
   hot: boolean;
   onHot: (value: boolean) => void;
   onFiles: (files: FileList | null) => void;
   onDemo: () => void;
+  jobSlot?: ReactNode;
 };
 
-export function DropGate({ hot, onHot, onFiles, onDemo }: DropGateProps) {
+export function DropGate({ hot, onHot, onFiles, onDemo, jobSlot }: DropGateProps) {
   function onDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     onHot(false);
@@ -49,6 +50,7 @@ export function DropGate({ hot, onHot, onFiles, onDemo }: DropGateProps) {
         <p>Export from LinkedIn, drop it here. Same canvas, same marks. Not wired yet.</p>
         <span className="soon">Coming soon</span>
       </article>
+      {jobSlot}
     </div>
   );
 }
