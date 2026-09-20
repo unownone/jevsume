@@ -75,6 +75,17 @@ function storeVisitorCountCache(c: Context<AppEnv>, response: Response): void {
   }
 }
 
+async function bustVisitorCountCache(request: Request): Promise<void> {
+  if (typeof caches === "undefined") {
+    return;
+  }
+  try {
+    await caches.default.delete(visitorCountCacheKey(request));
+  } catch {
+    // Cache API is optional in tests and some runtimes.
+  }
+}
+
 function setVisitorCountCacheHeaders(c: Context<AppEnv>): void {
   c.header("Cache-Control", VISITOR_COUNT_CACHE_CONTROL);
   c.header("CDN-Cache-Control", VISITOR_COUNT_CDN_CACHE_CONTROL);
@@ -314,6 +325,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       (fromCookie && isVisitorId(fromCookie) ? fromCookie : undefined) ??
       crypto.randomUUID();
     const recorded = await c.get("visitors").record(visitorId);
+    await bustVisitorCountCache(c.req.raw);
     c.header("Cache-Control", VISITOR_WRITE_CACHE_CONTROL);
     c.header("Set-Cookie", `jevsume_vid=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax`);
     return c.json({ uniqueVisitors: recorded.uniqueVisitors, visitorId });

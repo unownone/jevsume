@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   INPUT_TOKEN_USD_PER_MILLION,
   MockJudgmentProvider,
@@ -370,6 +370,41 @@ describe("Hono API", () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control") ?? "").toMatch(/no-store/i);
+  });
+
+  it("invalidates the cached visitor count after a unique write", async () => {
+    const entries = new Map<string, Response>();
+    vi.stubGlobal("caches", {
+      default: {
+        async match(request: Request) {
+          const hit = entries.get(new URL(request.url).pathname);
+          return hit?.clone();
+        },
+        async put(request: Request, response: Response) {
+          entries.set(new URL(request.url).pathname, response);
+        },
+        async delete(request: Request) {
+          return entries.delete(new URL(request.url).pathname);
+        },
+      },
+    });
+    try {
+      const app = testApp();
+      const firstGet = await app.request("http://example.com/api/visitors");
+      expect(await firstGet.json()).toEqual({ uniqueVisitors: 0 });
+
+      const posted = await app.request("http://example.com/api/visitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitorId: "cache-bust-visitor" }),
+      });
+      expect((await posted.json() as { uniqueVisitors: number }).uniqueVisitors).toBe(1);
+
+      const secondGet = await app.request("http://example.com/api/visitors");
+      expect(await secondGet.json()).toEqual({ uniqueVisitors: 1 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("records unique visitors in KV when the binding is present", async () => {
