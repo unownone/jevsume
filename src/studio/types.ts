@@ -76,16 +76,19 @@ export type StudioScore = {
     requestCount: number;
     serverMs: number;
   };
-  hierarchy?: Array<{
-    id: string;
-    title: string;
-    kind: string;
-    weight: number | null;
-    score01: number | null;
-    contribution: number | null;
-    status: "pending" | "scored";
-    children: Array<{ id: string; title: string; status: "pending" | "scored"; contribution: number | null }>;
-  }>;
+  hierarchy?: StudioScoreNode[];
+};
+
+export type StudioScoreNode = {
+  id: string;
+  title: string;
+  kind: string;
+  weight: number | null;
+  score01: number | null;
+  contribution: number | null;
+  status: "pending" | "scored";
+  dimensions?: Array<{ id: string; label: string; score: number; max: number; weight01?: number }>;
+  children: StudioScoreNode[];
 };
 
 export type PageMetrics = {

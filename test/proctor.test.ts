@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { assembleTree, type ProctorBlock } from "../packages/jev/hierarchy.ts";
 import { applyContributions, climbOverall, largestRemainderPercents, recoverPoints } from "../packages/jev/iterative-score.ts";
-import { applyL1Weights, scoreHierarchyNode } from "../packages/jev/proctor.ts";
+import { applyL1Weights, buildProctorReview, scoreHierarchyNode } from "../packages/jev/proctor.ts";
 import type { HierarchyNode } from "../packages/jev/types.ts";
+import { validityEvidenceFromTree } from "../shared/score-pair.ts";
 
 function node(partial: Partial<HierarchyNode> & Pick<HierarchyNode, "id" | "kind" | "title">): HierarchyNode {
   return {
@@ -107,6 +108,71 @@ describe("section scoring", () => {
     expect(scored.suggestions.every((item) => item.span?.sectionId === "skills")).toBe(true);
     expect(scored.node.score01).toBeGreaterThan(0);
     expect(scored.node.score01).toBeLessThan(1);
+  });
+});
+
+describe("validity and evidence pair", () => {
+  it("fills both 0–100 numbers from scored rubric dimensions", () => {
+    const scored = scoreHierarchyNode(
+      node({ id: "job1", kind: "job", title: "Acme", text: "Cut costs 20% on Kafka" }),
+      {
+        n_job1_verbs: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_metrics: { type: "score", score: 4, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_count: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_recency: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_specific: { type: "score", score: 4, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_consistency: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.8 },
+        n_job1_ats_parse: { type: "score", score: 2, legend: {}, probabilities: {}, confidence: 0.8 },
+      },
+      40,
+    );
+    const pair = validityEvidenceFromTree([scored.node]);
+    expect(pair.validity).toBeGreaterThan(0);
+    expect(pair.evidence).toBeGreaterThan(0);
+    expect(pair.validity).toBeLessThanOrEqual(100);
+    expect(pair.evidence).toBeLessThanOrEqual(100);
+    expect(pair.evidence).toBeGreaterThan(pair.validity);
+  });
+
+  it("falls back to section score01 by kind when dimensions are missing", () => {
+    const pair = validityEvidenceFromTree([
+      node({ id: "header", kind: "header", title: "Header", status: "scored", score01: 0.8 }),
+      node({ id: "job1", kind: "job", title: "Acme", status: "scored", score01: 0.4, level: 2 }),
+    ]);
+    expect(pair.validity).toBe(80);
+    expect(pair.evidence).toBe(40);
+  });
+
+  it("writes the pair onto a finished proctor review", () => {
+    const scored = scoreHierarchyNode(
+      node({ id: "header", kind: "header", title: "Header", text: "Jane Doe  jane@x.com", weight: 100 }),
+      {
+        n_header_name: { type: "score", score: 4, legend: {}, probabilities: {}, confidence: 0.9 },
+        n_header_contact: { type: "score", score: 4, legend: {}, probabilities: {}, confidence: 0.9 },
+        n_header_ats: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.9 },
+        n_header_consistency: { type: "score", score: 3, legend: {}, probabilities: {}, confidence: 0.9 },
+      },
+      100,
+    );
+    const review = buildProctorReview({
+      roots: [scored.node],
+      provider: "mock",
+      resumeText: "Jane Doe",
+      telemetry: {
+        serverMs: 1,
+        inputTokens: 10,
+        outputTokens: 2,
+        totalTokens: 12,
+        costUsd: 0,
+        requestCount: 1,
+      },
+      suggestions: [],
+      findings: [],
+      mode: "general",
+    });
+    expect(review.validity).toBeGreaterThan(0);
+    expect(review.evidence).toBeGreaterThanOrEqual(0);
+    expect(review.validity).toBeLessThanOrEqual(100);
   });
 });
 

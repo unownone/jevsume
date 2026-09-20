@@ -8,6 +8,7 @@ import {
   jobTargetLabel,
   type JobTargetFields,
 } from "../../shared/job-target.ts";
+import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
 import { linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { DropGate } from "./DropGate.tsx";
@@ -237,8 +238,7 @@ export default function StudioApp() {
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: 0,
-              hierarchy: event.roots as StudioScore["hierarchy"],
-              dimensions: dimensionsFromHierarchy(event.roots),
+              ...pairPatch(event.roots),
               telemetry: event.telemetry as StudioScore["telemetry"],
             }),
           );
@@ -247,8 +247,7 @@ export default function StudioApp() {
           setSectionBands(bandsFromRoots(event.roots, runs, false));
           setLiveScore((current) =>
             mergeLiveScore(current, {
-              hierarchy: event.roots as StudioScore["hierarchy"],
-              dimensions: dimensionsFromHierarchy(event.roots),
+              ...pairPatch(event.roots),
               telemetry: event.telemetry as StudioScore["telemetry"],
             }),
           );
@@ -272,15 +271,6 @@ export default function StudioApp() {
               );
             }
           }
-          setLiveScore((current) =>
-            mergeLiveScore(current, {
-              value: overall,
-              noteCount: (current?.noteCount ?? 0) + mapped.length,
-              hierarchy: (liveRoots as StudioScore["hierarchy"]) ?? current?.hierarchy,
-              dimensions: liveRoots ? dimensionsFromHierarchy(liveRoots) : current?.dimensions,
-              telemetry: event.telemetry as StudioScore["telemetry"],
-            }),
-          );
           const incoming = Array.isArray(event.findings) ? event.findings : [];
           const mapped = incoming.flatMap((item, index) => {
             const finding = item as {
@@ -322,10 +312,20 @@ export default function StudioApp() {
             });
           }
           const suggestions = Array.isArray(event.suggestions) ? event.suggestions : [];
+          const fromRoots = liveRoots ? pairPatch(liveRoots) : null;
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: overall,
               noteCount: (current?.noteCount ?? 0) + mapped.length,
+              ...(fromRoots ?? {}),
+              validity:
+                typeof event.validity === "number"
+                  ? event.validity
+                  : (fromRoots?.validity ?? current?.validity ?? 0),
+              evidence:
+                typeof event.evidence === "number"
+                  ? event.evidence
+                  : (fromRoots?.evidence ?? current?.evidence ?? 0),
               suggestions: suggestions.map((item) => {
                 const suggestion = item as {
                   id?: string;
@@ -352,14 +352,19 @@ export default function StudioApp() {
         if (type === "complete" && event.review && typeof event.review === "object") {
           const review = event.review as {
             jevScore?: { value?: number };
+            validity?: number;
+            evidence?: number;
             suggestions?: Array<{ id?: string; text?: string; recoverPoints?: number; span?: { start: number; end: number } }>;
             hierarchy?: StudioScore["hierarchy"];
             telemetry?: StudioScore["telemetry"];
             verdict?: string;
           };
+          const pair = review.hierarchy ? pairPatch(review.hierarchy) : { validity: 0, evidence: 0 };
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: review.jevScore?.value ?? current?.value ?? 0,
+              validity: typeof review.validity === "number" ? review.validity : pair.validity || current?.validity || 0,
+              evidence: typeof review.evidence === "number" ? review.evidence : pair.evidence || current?.evidence || 0,
               hierarchy: review.hierarchy ?? current?.hierarchy,
               dimensions: review.hierarchy ? dimensionsFromHierarchy(review.hierarchy) : current?.dimensions,
               telemetry: review.telemetry ?? current?.telemetry,
@@ -681,6 +686,16 @@ function mergeBands(current: SectionBand[], incoming: SectionBand[]): SectionBan
     next = upsertBand(next, band);
   }
   return next;
+}
+
+function pairPatch(roots: unknown): Pick<StudioScore, "hierarchy" | "dimensions" | "validity" | "evidence"> {
+  const pair = Array.isArray(roots) ? validityEvidenceFromTree(roots) : { validity: 0, evidence: 0 };
+  return {
+    hierarchy: (Array.isArray(roots) ? roots : []) as StudioScore["hierarchy"],
+    dimensions: Array.isArray(roots) ? dimensionsFromHierarchy(roots) : [],
+    validity: pair.validity,
+    evidence: pair.evidence,
+  };
 }
 
 function dimensionsFromHierarchy(roots: unknown): StudioScore["dimensions"] {

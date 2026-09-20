@@ -98,6 +98,23 @@ function dimensionList(
   });
 }
 
+function pairFromAnswers(answers: Record<string, Answer>): { validity: number; evidence: number } {
+  const meanPct = (ids: string[]) => {
+    const values = ids.flatMap((id) => {
+      const score = asScore(answers[id]);
+      return score ? [score.score / 4] : [];
+    });
+    if (values.length === 0) {
+      return 0;
+    }
+    return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100);
+  };
+  return {
+    validity: meanPct(["structure", "ats_parse"]),
+    evidence: meanPct(["metrics", "evidence_strength", "keyword_alignment"]),
+  };
+}
+
 const EMPTY_TELEMETRY: ReviewTelemetry = {
   serverMs: 0,
   inputTokens: 0,
@@ -456,6 +473,8 @@ export function transformGeneralReview(input: {
   return {
     mode: "general",
     jevScore,
+    validity: pairFromAnswers(answers).validity,
+    evidence: pairFromAnswers(answers).evidence,
     dimensions,
     sections,
     findings,
@@ -568,6 +587,8 @@ export function transformJobReview(input: {
   return {
     mode: "job",
     jevScore,
+    validity: pairFromAnswers(answers).validity,
+    evidence: pairFromAnswers(answers).evidence,
     dimensions: dimensionList(answers, [
       "fit_overall",
       "keyword_alignment",

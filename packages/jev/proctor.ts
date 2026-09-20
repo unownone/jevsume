@@ -1,3 +1,4 @@
+import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
 import { fallbackSpan } from "./anchors.ts";
 import { DEFAULT_PERSONA } from "./default-persona.ts";
 import { kindLabel, sectionsFromTree } from "./hierarchy.ts";
@@ -226,6 +227,7 @@ export function buildProctorReview(input: {
   const rolled = rollUpParents(input.roots);
   const overall = climbOverall(rolled);
   const roots = applyContributions(rolled, overall);
+  const pair = validityEvidenceFromTree(roots);
   const sections = sectionsFromTree(roots);
   const findings =
     input.findings.length > 0
@@ -250,6 +252,8 @@ export function buildProctorReview(input: {
       })),
       confidence: null,
     },
+    validity: pair.validity,
+    evidence: pair.evidence,
     dimensions: dimensionsFromRoots(roots),
     sections,
     hierarchy: roots,

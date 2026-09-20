@@ -183,6 +183,8 @@ describe("Hono API", () => {
       mode: string;
       dimensions: { id: string; score: number; max: number }[];
       jevScore: { value: number };
+      validity: number;
+      evidence: number;
       hierarchy: { id: string; weight: number | null }[];
       telemetry: { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; requestCount: number };
     };
@@ -192,6 +194,8 @@ describe("Hono API", () => {
     expect(body.hierarchy.reduce((sum, item) => sum + (item.weight ?? 0), 0)).toBe(100);
     expect(body.jevScore.value).toBeGreaterThanOrEqual(0);
     expect(body.jevScore.value).toBeLessThanOrEqual(100);
+    expect(body.validity).toBeGreaterThan(0);
+    expect(body.evidence).toBeGreaterThan(0);
     expect(body.telemetry.requestCount).toBeGreaterThan(1);
     expect(body.telemetry.totalTokens).toBe(body.telemetry.inputTokens + body.telemetry.outputTokens);
 
@@ -371,7 +375,7 @@ describe("Hono API", () => {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as { type: string; overall?: number; telemetry?: { totalTokens: number; requestCount: number }; review?: { hierarchy: unknown[]; telemetry: { requestCount: number } } });
+      .map((line) => JSON.parse(line) as { type: string; overall?: number; validity?: number; evidence?: number; telemetry?: { totalTokens: number; requestCount: number }; review?: { hierarchy: unknown[]; validity?: number; evidence?: number; telemetry: { requestCount: number } } });
     expect(events.map((event) => event.type)[0]).toBe("hierarchy");
     expect(events.some((event) => event.type === "weights")).toBe(true);
     expect(events.some((event) => event.type === "section" && Array.isArray((event as { roots?: unknown[] }).roots))).toBe(
@@ -387,6 +391,8 @@ describe("Hono API", () => {
       type: string;
       review?: {
         hierarchy: unknown[];
+        validity?: number;
+        evidence?: number;
         telemetry: { requestCount: number; totalTokens: number; costUsd: number };
         suggestions: { recoverPoints?: number }[];
       };
@@ -394,6 +400,9 @@ describe("Hono API", () => {
     expect(complete?.review?.hierarchy.length).toBeGreaterThan(0);
     expect(complete?.review?.telemetry.requestCount).toBeGreaterThan(1);
     expect(complete?.review?.suggestions.some((item) => (item.recoverPoints ?? 0) > 0)).toBe(true);
+    expect(complete?.review?.validity).toBeGreaterThan(0);
+    expect(complete?.review?.evidence).toBeGreaterThan(0);
+    expect(sections.some((event) => (event.validity ?? 0) > 0 || (event.evidence ?? 0) > 0)).toBe(true);
   });
 
   it("counts unique visitors once per visitor id", async () => {

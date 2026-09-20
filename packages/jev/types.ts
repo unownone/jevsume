@@ -244,6 +244,10 @@ export type ReviewTelemetry = {
 export type ReviewResponse = {
   mode: "general" | "job";
   jevScore: JevScore;
+  /** Parser/ATS readability 0–100. */
+  validity: number;
+  /** Numbered or named claims 0–100. */
+  evidence: number;
   dimensions: DimensionScore[];
   sections: ResumeSection[];
   hierarchy: HierarchyNode[];
@@ -276,6 +280,8 @@ export type ProctorEvent =
       roots: HierarchyNode[];
       suggestions: ReviewSuggestion[];
       findings: ReviewFinding[];
+      validity: number;
+      evidence: number;
       telemetry: ReviewTelemetry;
     }
   | {

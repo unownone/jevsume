@@ -46,6 +46,7 @@ import {
   trimJobTarget,
   type JobTarget,
 } from "../shared/job-target.ts";
+import { validityEvidenceFromTree } from "../shared/score-pair.ts";
 import { buildProctorBlocks, extractRequirementCandidates, groupResumeText } from "./ats/group.ts";
 import { hashJson, sha256Hex } from "./storage/hash.ts";
 import type {
@@ -436,6 +437,7 @@ export class ReviewEngine {
       roots = rollUpParents(replaceNode(roots, scoredNode.node));
       suggestions.push(...scoredNode.suggestions);
       findings.push(...scoredNode.findings);
+      const pair = validityEvidenceFromTree(roots);
       yield {
         type: "section",
         node: scoredNode.node,
@@ -443,6 +445,8 @@ export class ReviewEngine {
         roots,
         suggestions: scoredNode.suggestions,
         findings: scoredNode.findings,
+        validity: pair.validity,
+        evidence: pair.evidence,
         telemetry: telemetryOf(usage, ms()),
       };
     }

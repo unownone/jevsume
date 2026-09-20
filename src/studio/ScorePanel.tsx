@@ -55,11 +55,11 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
       </div>
       <div className="score-pair">
         <div>
-          <strong>{score.validity}</strong>
+          <strong>{formatJevScore(score.validity)}</strong>
           <span>Validity</span>
         </div>
         <div>
-          <strong>{score.evidence}</strong>
+          <strong>{formatJevScore(score.evidence)}</strong>
           <span>Evidence</span>
         </div>
       </div>

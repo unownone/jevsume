@@ -27,6 +27,8 @@ export type ReviewResponse = {
     breakdown: { key: string; score01: number; weight: number }[];
     confidence: number | null;
   };
+  validity?: number;
+  evidence?: number;
   dimensions: {
     id: string;
     label: string;
