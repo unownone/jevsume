@@ -18,6 +18,13 @@ import { createMemoryStores, MemoryVisitorStore } from "./storage/memory.ts";
 import { ensureD1Schema } from "./storage/schema.ts";
 import type { EvalListFilter, ReviewStores, VisitorStore } from "./storage/types.ts";
 import { isEvalKind } from "./storage/types.ts";
+import {
+  parseWebsiteEventType,
+  requestCountry,
+  sanitizeEventPage,
+  writeWebsiteEvent,
+} from "./analytics.ts";
+import type { WebsiteEventType } from "../shared/events.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
@@ -265,11 +272,35 @@ function rateLimitBody(err: RateLimitedError): RateLimitErrorBody {
   };
 }
 
+function readWebsiteEvent(body: Record<string, unknown>): {
+  type: WebsiteEventType;
+  page: string;
+} {
+  const type = parseWebsiteEventType(readString(body.type));
+  if (!type) {
+    throw new HTTPException(400, { message: "type must be pageview or click" });
+  }
+  const page = sanitizeEventPage(readString(body.page) ?? "");
+  if (!page) {
+    throw new HTTPException(400, { message: "page is required" });
+  }
+  return { type, page };
+}
+
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   const rateLimiter = options.rateLimiter ?? new MemoryRateLimiter();
   app.use("/api/*", cors());
   let memoryVisitors: MemoryVisitorStore | undefined;
+
+  app.use("/api/*", async (c, next) => {
+    writeWebsiteEvent(c.env?.ANALYTICS, {
+      type: "pageview",
+      page: c.req.path,
+      country: requestCountry(c.req.raw),
+    });
+    await next();
+  });
 
   app.use("/api/*", async (c, next) => {
     if (options.engine) {
@@ -308,6 +339,16 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.error(message, err instanceof Error ? err.stack : err);
     return c.json({ error: "Internal error" }, 500);
+  });
+
+  app.post("/api/events", async (c) => {
+    const event = readWebsiteEvent(await jsonObject(c));
+    writeWebsiteEvent(c.env?.ANALYTICS, {
+      type: event.type,
+      page: event.page,
+      country: requestCountry(c.req.raw),
+    });
+    return c.json({ ok: true });
   });
 
   app.get("/api/health", (c) => {

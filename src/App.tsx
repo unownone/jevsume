@@ -22,6 +22,7 @@ import {
   type JobPersonaItem,
   type ReviewResponse,
 } from "./lib/api.ts";
+import { trackClick } from "./lib/events.ts";
 import { extractFromFile } from "./lib/extract.ts";
 import { loadVisitorId, persistVisitorId } from "./lib/visitor.ts";
 
@@ -181,6 +182,7 @@ export default function App() {
     if (!file) {
       return;
     }
+    trackClick("/upload");
     setError(null);
     try {
       const extracted = await extractFromFile(file);
@@ -199,6 +201,7 @@ export default function App() {
 
   async function onCreatePersona(event: FormEvent) {
     event.preventDefault();
+    trackClick("/persona");
     setBusy(true);
     setError(null);
     try {
@@ -221,6 +224,7 @@ export default function App() {
   }
 
   async function onReview() {
+    trackClick("/review");
     setBusy(true);
     setError(null);
     const started = performance.now();
@@ -305,7 +309,10 @@ export default function App() {
                   onChange={(event) => void onFiles(event.target.files)}
                 />
               </label>
-              <button className="ghost" type="button" onClick={() => setResumeText(DEMO_RESUME)}>
+              <button className="ghost" type="button" onClick={() => {
+                trackClick("/demo");
+                setResumeText(DEMO_RESUME);
+              }}>
                 Load demo
               </button>
             </div>

@@ -1,4 +1,5 @@
 import type { DragEvent, ReactNode } from "react";
+import { trackClick } from "../lib/events.ts";
 
 type DropGateProps = {
   hot: boolean;
@@ -39,7 +40,10 @@ export function DropGate({ hot, onHot, onFiles, onDemo, jobSlot }: DropGateProps
               onChange={(event) => onFiles(event.target.files)}
             />
           </label>
-          <button className="ghost tight" type="button" onClick={onDemo}>
+          <button className="ghost tight" type="button" onClick={() => {
+            trackClick("/demo");
+            onDemo();
+          }}>
             Load demo PDF
           </button>
         </div>
