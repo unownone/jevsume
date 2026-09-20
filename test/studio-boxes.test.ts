@@ -426,4 +426,108 @@ describe("document analysis", () => {
     expect(next.skillsLine).toMatch(/Dump vs evidence|Proven in work/i);
     expect(next.rewriteLine).toMatch(/recover 6/i);
   });
+
+  it("keeps adding scored roles instead of freezing after the first job", () => {
+    const first = decorateStudioScore(
+      {
+        value: 20,
+        verdict: "Jev is scoring each section.",
+        noteCount: 2,
+        validity: 10,
+        evidence: 10,
+        leadershipLine: "Waiting on section scores.",
+        jobsLine: "Roles appear as they score.",
+        skillsLine: "Skills score after the dump is judged.",
+        rewriteLine: "Suggestions arrive with recover points.",
+        rewrite: "none",
+        strong: "—",
+        weak: "—",
+        dimensions: [],
+        suggestions: [],
+        hierarchy: [
+          {
+            id: "experience",
+            title: "Experience",
+            kind: "experience",
+            weight: 53,
+            score01: null,
+            contribution: null,
+            status: "pending",
+            children: [
+              {
+                id: "quillbot",
+                title: "QuillBot",
+                kind: "job",
+                weight: 12,
+                score01: 0.67,
+                contribution: 8,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+                children: [],
+              },
+              {
+                id: "mable",
+                title: "Mable GmbH",
+                kind: "job",
+                weight: 10,
+                score01: null,
+                contribution: null,
+                status: "pending",
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+    );
+    expect(first.jobsLine).toBe("QuillBot 8/12");
+
+    const second = decorateStudioScore(
+      {
+        ...first,
+        hierarchy: [
+          {
+            id: "experience",
+            title: "Experience",
+            kind: "experience",
+            weight: 53,
+            score01: 0.6,
+            contribution: 32,
+            status: "pending",
+            children: [
+              {
+                id: "quillbot",
+                title: "QuillBot",
+                kind: "job",
+                weight: 12,
+                score01: 0.67,
+                contribution: 8,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 3.2, max: 4 }],
+                children: [],
+              },
+              {
+                id: "mable",
+                title: "Mable GmbH",
+                kind: "job",
+                weight: 10,
+                score01: 0.5,
+                contribution: 5,
+                status: "scored",
+                dimensions: [{ id: "verbs", label: "Action verbs", score: 2.1, max: 4 }],
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+      [],
+      [],
+    );
+    expect(second.jobsLine).toMatch(/QuillBot 8\/12/);
+    expect(second.jobsLine).toMatch(/Mable GmbH 5\/10/);
+    expect(second.leadershipLine).toMatch(/2 scored roles/);
+  });
 });

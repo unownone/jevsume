@@ -453,7 +453,7 @@ export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
 
   let { leadershipLine, jobsLine, skillsLine, rewriteLine } = score;
 
-  if (leadershipLine === WAITING_LEADERSHIP && verbDims.length > 0) {
+  if (verbDims.length > 0) {
     const avg = verbDims.reduce((sum, dim) => sum + dim.score, 0) / verbDims.length;
     const thin = verbDims.filter((dim) => dim.max > 0 && dim.score / dim.max < 0.75).length;
     leadershipLine = `Action verbs ${avg.toFixed(1)} / 4 across ${verbDims.length} scored role${
@@ -461,13 +461,13 @@ export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
     }${thin > 0 ? ` · ${thin} still thin` : ""}.`;
   }
 
-  if (jobsLine === WAITING_JOBS && scoredJobs.length > 0) {
+  if (scoredJobs.length > 0) {
     jobsLine = scoredJobs
       .map((job) => `${job.title} ${Math.round(job.contribution ?? 0)}/${job.weight ?? 0}`)
       .join(" · ");
   }
 
-  if (skillsLine === WAITING_SKILLS && skills?.status === "scored") {
+  if (skills?.status === "scored") {
     const dims = skills.dimensions ?? [];
     const dump = dims.find((dim) => /dump/i.test(dim.label));
     const proven = dims.find((dim) => /proven/i.test(dim.label));
@@ -482,7 +482,7 @@ export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
   }
 
   const recover = (score.suggestions ?? []).reduce((sum, card) => sum + (card.recoverPoints ?? 0), 0);
-  if (rewriteLine === WAITING_REWRITE && score.suggestions.length > 0) {
+  if (score.suggestions.length > 0) {
     rewriteLine = `${score.suggestions.length} suggestion${score.suggestions.length === 1 ? "" : "s"} · recover ${recover} point${
       recover === 1 ? "" : "s"
     }.`;
