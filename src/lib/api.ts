@@ -228,7 +228,10 @@ export async function* streamReview(
 ): AsyncGenerator<Record<string, unknown>> {
   const response = await fetch("/api/reviews/stream", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Encoding": "identity",
+    },
     body: JSON.stringify(reviewRequestBody(resumeText, personaId, jobTarget)),
   });
   if (!response.ok || !response.body) {
@@ -259,6 +262,9 @@ export async function* streamReview(
         continue;
       }
       yield JSON.parse(trimmed) as Record<string, unknown>;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
     }
     if (done) {
       break;

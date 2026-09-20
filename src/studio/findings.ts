@@ -19,6 +19,7 @@ import {
   seniorityMismatch,
   type JobTarget,
 } from "../../shared/job-target.ts";
+import { formatPoints } from "../../shared/format.ts";
 import type { DocumentLine, GlyphBox, OverlayFinding, PageBox, ScoreDimension, Severity, StudioScore } from "./types.ts";
 
 const FINDING_CAP = 28;
@@ -429,36 +430,72 @@ const WAITING_SKILLS = "Skills score after the dump is judged.";
 const WAITING_REWRITE = "Suggestions arrive with recover points.";
 const WAITING_VERDICT = "Jev is scoring each section.";
 
-function walkScoreNodes(nodes: StudioScore["hierarchy"] | undefined): NonNullable<StudioScore["hierarchy"]> {
-  const out: NonNullable<StudioScore["hierarchy"]> = [];
-  const visit = (node: NonNullable<StudioScore["hierarchy"]>[number]) => {
-    out.push(node);
+function walkScoreNodes(nodes: StudioScore["hierarchy"] | undefined): Array<{
+  node: NonNullable<StudioScore["hierarchy"]>[number];
+  parent: NonNullable<StudioScore["hierarchy"]>[number] | null;
+}> {
+  const out: Array<{
+    node: NonNullable<StudioScore["hierarchy"]>[number];
+    parent: NonNullable<StudioScore["hierarchy"]>[number] | null;
+  }> = [];
+  const visit = (
+    node: NonNullable<StudioScore["hierarchy"]>[number],
+    parent: NonNullable<StudioScore["hierarchy"]>[number] | null,
+  ) => {
+    out.push({ node, parent });
     for (const child of node.children ?? []) {
-      visit(child);
+      visit(child, node);
     }
   };
   for (const node of nodes ?? []) {
-    visit(node);
+    visit(node, null);
   }
   return out;
 }
 
-export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
-  const nodes = walkScoreNodes(score.hierarchy);
-  const scoredJobs = nodes.filter((node) => node.kind === "job" && node.status === "scored");
-  const skills = nodes.find((node) => node.kind === "skills");
-  const verbDims = scoredJobs.flatMap((node) =>
-    (node.dimensions ?? []).filter((dim) => /action verbs/i.test(dim.label)),
-  );
+function isRoleNode(
+  node: NonNullable<StudioScore["hierarchy"]>[number],
+  parent: NonNullable<StudioScore["hierarchy"]>[number] | null,
+): boolean {
+  if (node.kind === "job") {
+    return true;
+  }
+  if (parent?.kind === "experience") {
+    return true;
+  }
+  return node.kind === "experience" && (node.children?.length ?? 0) === 0;
+}
 
-  let { leadershipLine, jobsLine, skillsLine, rewriteLine } = score;
+function isSkillsNode(node: NonNullable<StudioScore["hierarchy"]>[number]): boolean {
+  return node.kind === "skills" || /^skills$/i.test(node.title.trim());
+}
+
+function dimRatio(dim: { score: number; max: number }): number {
+  return dim.max > 0 ? dim.score / dim.max : 0;
+}
+
+export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
+  const walked = walkScoreNodes(score.hierarchy);
+  const nodes = walked.map((item) => item.node);
+  const scoredJobs = walked
+    .filter(({ node, parent }) => node.status === "scored" && isRoleNode(node, parent))
+    .map(({ node }) => node);
+  const skills = nodes.find((node) => isSkillsNode(node));
+  const verbDims = scoredJobs.flatMap((node) =>
+    (node.dimensions ?? []).filter((dim) => /verb/i.test(dim.label)),
+  );
+  const scoredDims = nodes.flatMap((node) => (node.status === "scored" ? (node.dimensions ?? []) : []));
+
+  let { leadershipLine, jobsLine, skillsLine, rewriteLine, strong, weak } = score;
 
   if (verbDims.length > 0) {
     const avg = verbDims.reduce((sum, dim) => sum + dim.score, 0) / verbDims.length;
-    const thin = verbDims.filter((dim) => dim.max > 0 && dim.score / dim.max < 0.75).length;
+    const thin = verbDims.filter((dim) => dimRatio(dim) < 0.75).length;
     leadershipLine = `Action verbs ${avg.toFixed(1)} / 4 across ${verbDims.length} scored role${
       verbDims.length === 1 ? "" : "s"
     }${thin > 0 ? ` · ${thin} still thin` : ""}.`;
+  } else if (scoredJobs.length > 0) {
+    leadershipLine = `${scoredJobs.length} scored role${scoredJobs.length === 1 ? "" : "s"}.`;
   }
 
   if (scoredJobs.length > 0) {
@@ -483,12 +520,20 @@ export function fillWaitingJudgeLines(score: StudioScore): StudioScore {
 
   const recover = (score.suggestions ?? []).reduce((sum, card) => sum + (card.recoverPoints ?? 0), 0);
   if (score.suggestions.length > 0) {
-    rewriteLine = `${score.suggestions.length} suggestion${score.suggestions.length === 1 ? "" : "s"} · recover ${recover} point${
-      recover === 1 ? "" : "s"
+    const recoverLabel = formatPoints(recover);
+    rewriteLine = `${score.suggestions.length} suggestion${score.suggestions.length === 1 ? "" : "s"} · recover ${recoverLabel} point${
+      recoverLabel === "1" ? "" : "s"
     }.`;
   }
 
-  return { ...score, leadershipLine, jobsLine, skillsLine, rewriteLine };
+  if (scoredDims.length > 0) {
+    const best = scoredDims.reduce((lead, dim) => (dimRatio(dim) >= dimRatio(lead) ? dim : lead));
+    const worst = scoredDims.reduce((lead, dim) => (dimRatio(dim) <= dimRatio(lead) ? dim : lead));
+    strong = `${best.label}: ${best.score.toFixed(1)} / ${best.max}`;
+    weak = `${worst.label}: ${worst.score.toFixed(1)} / ${worst.max}`;
+  }
+
+  return { ...score, leadershipLine, jobsLine, skillsLine, rewriteLine, strong, weak };
 }
 
 export function decorateStudioScore(

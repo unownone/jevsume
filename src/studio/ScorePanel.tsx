@@ -73,6 +73,24 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
             : " · 1 Jev request"}
         </p>
       ) : null}
+      <dl className="judge-lines">
+        <div>
+          <dt>Leadership</dt>
+          <dd>{score.leadershipLine}</dd>
+        </div>
+        <div>
+          <dt>Roles</dt>
+          <dd>{score.jobsLine}</dd>
+        </div>
+        <div>
+          <dt>Skills</dt>
+          <dd>{score.skillsLine}</dd>
+        </div>
+        <div>
+          <dt>Rewrite</dt>
+          <dd>{score.rewriteLine}</dd>
+        </div>
+      </dl>
       {score.hierarchy && score.hierarchy.length > 0 ? (
         <ul className="score-tree">
           {score.hierarchy.map((node) => (
@@ -98,24 +116,6 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
           ))}
         </ul>
       ) : null}
-      <dl className="judge-lines">
-        <div>
-          <dt>Leadership</dt>
-          <dd>{score.leadershipLine}</dd>
-        </div>
-        <div>
-          <dt>Roles</dt>
-          <dd>{score.jobsLine}</dd>
-        </div>
-        <div>
-          <dt>Skills</dt>
-          <dd>{score.skillsLine}</dd>
-        </div>
-        <div>
-          <dt>Rewrite</dt>
-          <dd>{score.rewriteLine}</dd>
-        </div>
-      </dl>
       <div className="score-bars">
         {score.dimensions.map((dimension, index) => (
           <div className="score-bar" key={dimension.id} style={{ "--i": index + 1 } as CSSProperties}>

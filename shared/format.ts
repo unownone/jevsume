@@ -39,6 +39,14 @@ export function formatTokenCount(value: number): string {
   return Math.round(value).toLocaleString("en-US");
 }
 
+export function formatPoints(value: number): string {
+  if (!Number.isFinite(value) || value === 0) {
+    return "0";
+  }
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 export function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) {
     return "0 ms";
