@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { PageOverlay } from "./PageOverlay.tsx";
-import { collectGlyphs, loadPdf, renderPage } from "./pdf.ts";
-import type { GlyphBox, OverlayFinding, PageBox } from "./types.ts";
+import { PageOverlay, type SectionBand } from "./PageOverlay.tsx";
+import { collectDocument, loadPdf, renderPage } from "./pdf.ts";
+import type { GlyphBox, LedgerRun, OverlayFinding, PageBox, PageMetrics } from "./types.ts";
 
 type PdfStageProps = {
   data: ArrayBuffer;
   zoom: number;
   findings: OverlayFinding[];
+  sections?: SectionBand[];
   activeId: string | null;
   hoveredId: string | null;
   drawMode: boolean;
   reading: boolean;
   onGlyphs: (glyphs: GlyphBox[]) => void;
+  onDocument?: (doc: { glyphs: GlyphBox[]; text: string; ledger: LedgerRun[]; pages: PageMetrics[] }) => void;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   onDraw: (box: PageBox) => void;
@@ -22,11 +24,13 @@ export function PdfStage({
   data,
   zoom,
   findings,
+  sections = [],
   activeId,
   hoveredId,
   drawMode,
   reading,
   onGlyphs,
+  onDocument,
   onSelect,
   onHover,
   onDraw,
@@ -46,7 +50,9 @@ export function PdfStage({
         }
         setPdf(document);
         setPageCount(document.numPages);
-        onGlyphs(await collectGlyphs(document));
+        const extracted = await collectDocument(document);
+        onGlyphs(extracted.glyphs);
+        onDocument?.(extracted);
       })
       .catch((caught: unknown) => {
         if (!cancelled) {
@@ -112,6 +118,7 @@ export function PdfStage({
             <PageOverlay
               page={page}
               findings={findings}
+              sections={sections}
               activeId={activeId}
               hoveredId={hoveredId}
               drawMode={drawMode}

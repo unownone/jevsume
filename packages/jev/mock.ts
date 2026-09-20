@@ -66,10 +66,58 @@ function peakedChoice(options: string[], winner: string): ChoiceAnswer {
   };
 }
 
+function classifyBlock(id: string, state: unknown, options: string[]): string {
+  const blockId = id.slice(4, -5);
+  const blocks = readBlocks(state);
+  const block = blocks.find((item) => item.id === blockId);
+  const text = `${block?.title ?? ""} ${block?.text ?? ""} ${block?.kindHint ?? ""}`.toLowerCase();
+  const pick = (kind: string) => (options.includes(kind) ? kind : options[0] ?? "other");
+  if (/skill/.test(text)) {
+    return pick("skills");
+  }
+  if (/educat|university|bachelor|b\.s/.test(text)) {
+    return pick("education");
+  }
+  if (/award|honor|certif|accolade/.test(text)) {
+    return pick("accolades");
+  }
+  if (/summary|profile|objective/.test(text)) {
+    return pick("summary");
+  }
+  if (/project/.test(text)) {
+    return pick("projects");
+  }
+  if (block?.kindHint === "job" || /engineer|intern \|/.test(text)) {
+    return pick("job");
+  }
+  if (/@/.test(text) || looksLikeName(block?.title ?? block?.text ?? "")) {
+    return pick("header");
+  }
+  return pick(block?.kindHint ?? "other");
+}
+
+function looksLikeName(text: string): boolean {
+  return /^[A-Z][\w.'-]+(?:\s+[A-Z][\w.'-]+){0,3}$/.test(text.trim().split("\n")[0] ?? "");
+}
+
+function readBlocks(state: unknown): Array<{ id: string; title?: string; text?: string; kindHint?: string }> {
+  if (!state || typeof state !== "object" || !("blocks" in state)) {
+    return [];
+  }
+  const blocks = (state as { blocks: unknown }).blocks;
+  if (!Array.isArray(blocks)) {
+    return [];
+  }
+  return blocks.filter((item): item is { id: string; title?: string; text?: string; kindHint?: string } => {
+    return Boolean(item && typeof item === "object" && "id" in item && typeof (item as { id: unknown }).id === "string");
+  });
+}
+
 function answerQuestion(
   id: string,
   question: Questions[string],
   blob: string,
+  state: unknown,
 ): Answer {
   switch (question.type) {
     case "score": {
@@ -146,6 +194,11 @@ function answerQuestion(
         if (!options.includes(winner)) {
           winner = options.includes("missing") ? "missing" : (options[0] ?? "missing");
         }
+      } else if (id.startsWith("blk_") && id.endsWith("_kind")) {
+        winner = classifyBlock(id, state, options);
+        if (!options.includes(winner)) {
+          winner = options.includes("other") ? "other" : (options[0] ?? "other");
+        }
       } else if (id.includes("_kind")) {
         if (blob.includes("education")) {
           winner = "education";
@@ -178,7 +231,7 @@ export class MockJudgmentProvider implements JudgmentProvider {
     const blob = resumeBlob(input.state);
     const answers: Record<string, Answer> = {};
     for (const [id, question] of Object.entries(input.questions)) {
-      answers[id] = answerQuestion(id, question, blob);
+      answers[id] = answerQuestion(id, question, blob, input.state);
     }
     return {
       model: "mock-jev",

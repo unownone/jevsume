@@ -114,6 +114,34 @@ describe("Hono API", () => {
     expect(evalRun.review.jevScore.value).toBe(body.jevScore.value);
   });
 
+  it("reviews against pasted job text without saving a persona", async () => {
+    const app = testApp();
+    const review = await app.request("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resumeText: SAMPLE_RESUME,
+        jobTitle: "Staff Backend Engineer",
+        company: "Acme",
+        jobUrl: "https://jobs.example.com/staff-backend",
+        jobText: "- 5+ years building event-driven services in Go\n- Production Kafka experience",
+      }),
+    });
+    expect(review.status).toBe(200);
+    const body = (await review.json()) as {
+      mode: string;
+      persona: { id: string; title: string; isDefault: boolean };
+      jobTarget: { jobTitle?: string; company?: string; jobUrl?: string; jobText?: string };
+    };
+    expect(body.mode).toBe("job");
+    expect(body.persona.isDefault).toBe(false);
+    expect(body.persona.title).toBe("Staff Backend Engineer");
+    expect(body.jobTarget.jobTitle).toBe("Staff Backend Engineer");
+    expect(body.jobTarget.company).toBe("Acme");
+    expect(body.jobTarget.jobUrl).toContain("jobs.example.com");
+    expect(body.jobTarget.jobText).toContain("Kafka");
+  });
+
   it("returns 404 for an unknown persona", async () => {
     const app = testApp();
     const res = await app.request("/api/reviews/job", {
@@ -153,12 +181,19 @@ describe("Hono API", () => {
       id: string;
       resumeId: string;
       mode: string;
-      dimensions: { id: string }[];
+      dimensions: { id: string; score: number; max: number }[];
       jevScore: { value: number };
+      hierarchy: { id: string; weight: number | null }[];
+      telemetry: { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; requestCount: number };
     };
     expect(body.mode).toBe("general");
     expect(body.resumeId).toBe(resume.id);
-    expect(body.dimensions.some((item) => item.id === "wording")).toBe(true);
+    expect(body.hierarchy.length).toBeGreaterThan(0);
+    expect(body.hierarchy.reduce((sum, item) => sum + (item.weight ?? 0), 0)).toBe(100);
+    expect(body.jevScore.value).toBeGreaterThanOrEqual(0);
+    expect(body.jevScore.value).toBeLessThanOrEqual(100);
+    expect(body.telemetry.requestCount).toBeGreaterThan(1);
+    expect(body.telemetry.totalTokens).toBe(body.telemetry.inputTokens + body.telemetry.outputTokens);
 
     const lookedUp = await app.request(`/api/resumes/${resume.id}`);
     expect(lookedUp.status).toBe(200);
@@ -195,23 +230,25 @@ describe("Hono API", () => {
         prompt?: unknown;
       }[];
     };
-    expect(listBody.items).toHaveLength(2);
+    expect(listBody.items.length).toBeGreaterThanOrEqual(2);
     expect(listBody.items[0]?.prompt).toBeUndefined();
-    expect(listBody.items[0]?.promptHash).toBe(listBody.items[1]?.promptHash);
+    expect(listBody.items.every((item) => item.kind === "general_review")).toBe(true);
 
     const full = await app.request(`/api/evals/${a.id}`);
     const run = (await full.json()) as {
       kind: string;
-      prompt: Record<string, { type: string; instructions: string }>;
+      prompt: Record<string, { type: string; instructions?: string }>;
       input: { resume: { text: string } };
       output: { answers: Record<string, { type: string }> };
       review: { mode: string };
     };
     expect(run.kind).toBe("general_review");
-    expect(run.prompt.wording?.type).toBe("score");
-    expect(run.prompt.wording?.instructions.length).toBeGreaterThan(10);
+    expect(Object.keys(run.prompt).length).toBeGreaterThan(0);
+    expect(Object.values(run.prompt).some((question) => question.type === "score" || question.type === "choice")).toBe(
+      true,
+    );
     expect(run.input.resume.text).toContain("Staff engineer");
-    expect(run.output.answers.wording?.type).toBe("score");
+    expect(Object.keys(run.output.answers).length).toBeGreaterThan(0);
     expect(run.review.mode).toBe("general");
   });
 
@@ -300,7 +337,7 @@ describe("Hono API", () => {
       resumeText: string;
       findings: { id: string; span: { start: number; end: number; fragmentId: string } }[];
       suggestions: { id: string; span?: { start: number; end: number } }[];
-      telemetry: { serverMs: number; inputTokens: number; costUsd: number };
+      telemetry: { serverMs: number; inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; requestCount: number };
     };
     expect(body.mode).toBe("general");
     expect(body.persona.isDefault).toBe(true);
@@ -312,10 +349,40 @@ describe("Hono API", () => {
     }
     expect(body.telemetry.serverMs).toBeGreaterThanOrEqual(0);
     expect(body.telemetry.inputTokens).toBeGreaterThan(0);
+    expect(body.telemetry.totalTokens).toBe(body.telemetry.inputTokens + body.telemetry.outputTokens);
+    expect(body.telemetry.requestCount).toBeGreaterThan(1);
     expect(body.telemetry.costUsd).toBeCloseTo(
       (body.telemetry.inputTokens / 1_000_000) * INPUT_TOKEN_USD_PER_MILLION,
       10,
     );
+  });
+
+  it("streams hierarchy then climbing section scores with accumulated token cost", async () => {
+    const app = testApp();
+    const res = await app.request("/api/reviews/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeText: SAMPLE_RESUME }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const events = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { type: string; overall?: number; telemetry?: { totalTokens: number; requestCount: number }; review?: { hierarchy: unknown[]; telemetry: { requestCount: number } } });
+    expect(events.map((event) => event.type)[0]).toBe("hierarchy");
+    expect(events.some((event) => event.type === "weights")).toBe(true);
+    expect(events.some((event) => event.type === "section")).toBe(true);
+    expect(events.at(-1)?.type).toBe("complete");
+    const sections = events.filter((event) => event.type === "section");
+    const overalls = sections.map((event) => event.overall ?? 0);
+    for (let index = 1; index < overalls.length; index += 1) {
+      expect(overalls[index] ?? 0).toBeGreaterThanOrEqual(overalls[index - 1] ?? 0);
+    }
+    const complete = events.at(-1);
+    expect(complete?.review?.hierarchy.length).toBeGreaterThan(0);
+    expect(complete?.review?.telemetry.requestCount).toBeGreaterThan(1);
   });
 
   it("counts unique visitors once per visitor id", async () => {

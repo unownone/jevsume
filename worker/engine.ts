@@ -1,27 +1,52 @@
 import {
-  buildGeneralReviewQuestions,
+  addUsage,
+  applyL1Weights,
+  assembleTree,
+  buildHierarchyQuestions,
   buildJobReviewQuestions,
   buildPersonaQuestions,
+  buildProctorReview,
+  buildSectionQuestions,
+  buildWeightQuestions,
+  climbOverall,
   DEFAULT_PERSONA,
   DEFAULT_PERSONA_ID,
+  emptyUsage,
   estimateInputCostUsd,
   MockJudgmentProvider,
+  nodeWeightForScoring,
   personaBlurb,
   requirementsFromPersonaAnswers,
-  transformGeneralReview,
+  replaceNode,
+  rollUpParents,
+  scoreHierarchyNode,
+  scoringTargets,
+  telemetryOf,
   transformJobReview,
   TypeSafeHttpProvider,
+  usageFromResult,
 } from "../packages/jev/index.ts";
 import type {
   JobPersona,
   JsonValue,
   JudgmentProvider,
+  ProctorEvent,
   Questions,
+  ReviewFinding,
   ReviewResponse,
+  ReviewSuggestion,
   SystemOneRequest,
   SystemOneResult,
+  UsageTotals,
 } from "../packages/jev/types.ts";
-import { extractRequirementCandidates, groupResumeText } from "./ats/group.ts";
+import {
+  composeJobDescription,
+  hasJobTarget,
+  jobTargetLabel,
+  trimJobTarget,
+  type JobTarget,
+} from "../shared/job-target.ts";
+import { buildProctorBlocks, extractRequirementCandidates, groupResumeText } from "./ats/group.ts";
 import { hashJson, sha256Hex } from "./storage/hash.ts";
 import type {
   EvalKind,
@@ -79,12 +104,36 @@ function catalogFromStored(persona: JobPersona, includeDescription = false): Job
   return item;
 }
 
+function personaFromJobTarget(input: JobTarget): JobPersona {
+  const target = trimJobTarget(input);
+  const jobDescription = composeJobDescription(target);
+  const title = target.jobTitle || jobTargetLabel(target);
+  const lines = extractRequirementCandidates(jobDescription);
+  return {
+    id: JOB_TARGET_PERSONA_ID,
+    title,
+    tags: target.company ? [target.company] : [],
+    jobDescription,
+    requirements: lines.map((text, index) => ({
+      id: `r${index + 1}`,
+      text,
+      category: "must_have" as const,
+      noul: 0.7,
+    })),
+    createdAt: new Date().toISOString(),
+  };
+}
+
 function telemetryFrom(result: SystemOneResult, serverMs: number) {
   const inputTokens = result.usage?.input_tokens ?? 0;
+  const outputTokens = result.usage?.output_tokens ?? 0;
   return {
     serverMs,
     inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
     costUsd: estimateInputCostUsd(inputTokens),
+    requestCount: 1,
   };
 }
 
@@ -99,7 +148,10 @@ export type EngineBindings = {
 export type ResumeMeta = {
   filename?: string;
   source?: string;
+  jobTarget?: JobTarget;
 };
+
+export const JOB_TARGET_PERSONA_ID = "job-target";
 
 export type PersistedReview = ReviewResponse & {
   id: string;
@@ -235,6 +287,9 @@ export class ReviewEngine {
     personaId?: string,
     meta?: ResumeMeta,
   ): Promise<PersistedReview | { error: "not_found" }> {
+    if (hasJobTarget(meta?.jobTarget)) {
+      return this.jobTargetReview(resumeText, meta?.jobTarget as JobTarget, meta);
+    }
     if (!personaId || personaId === DEFAULT_PERSONA_ID) {
       return this.generalReview(resumeText, meta);
     }
@@ -247,35 +302,205 @@ export class ReviewEngine {
     return { result, serverMs: Math.max(0, Math.round(performance.now() - started)) };
   }
 
-  async generalReview(resumeText: string, meta?: ResumeMeta): Promise<PersistedReview> {
+  async *streamReview(
+    resumeText: string,
+    personaId?: string,
+    meta?: ResumeMeta,
+  ): AsyncGenerator<ProctorEvent> {
+    if (hasJobTarget(meta?.jobTarget)) {
+      yield* this.streamProctorReview(resumeText, meta, personaFromJobTarget(meta?.jobTarget as JobTarget));
+      return;
+    }
+    if (personaId && personaId !== DEFAULT_PERSONA_ID) {
+      const persona = await this.stores.personas.get(personaId);
+      if (!persona) {
+        yield { type: "error", message: "Persona not found" };
+        return;
+      }
+      yield* this.streamProctorReview(resumeText, meta, persona);
+      return;
+    }
+    yield* this.streamProctorReview(resumeText, meta);
+  }
+
+  async *streamProctorReview(
+    resumeText: string,
+    meta?: ResumeMeta,
+    persona?: JobPersona,
+  ): AsyncGenerator<ProctorEvent> {
+    const started = performance.now();
+    let usage: UsageTotals = emptyUsage();
     const stored = await this.persistResume({
       text: resumeText,
       filename: meta?.filename,
       source: meta?.source ?? "review",
     });
     const grouped = groupResumeText(resumeText);
-    const request: SystemOneRequest = {
-      state: { resume: grouped },
-      questions: buildGeneralReviewQuestions(grouped.sections.map((section) => section.id)),
+    const blocks = buildProctorBlocks(resumeText);
+    const jobTarget = hasJobTarget(meta?.jobTarget) ? trimJobTarget(meta?.jobTarget) : undefined;
+    const jobState = persona
+      ? {
+          title: persona.title,
+          tags: persona.tags,
+          jobDescription: persona.jobDescription,
+          jobUrl: jobTarget?.jobUrl ?? "",
+          company: jobTarget?.company ?? "",
+          requirements: persona.requirements,
+        }
+      : undefined;
+    const jobListing = persona
+      ? {
+          title: persona.title,
+          company: jobTarget?.company ?? "",
+          url: jobTarget?.jobUrl ?? "",
+          description: persona.jobDescription,
+        }
+      : undefined;
+    const hierarchyRequest: SystemOneRequest = {
+      state:
+        jobState && jobListing
+          ? { resume: grouped, blocks, persona: jobState, job: jobListing }
+          : { resume: grouped, blocks },
+      questions: buildHierarchyQuestions(blocks),
     };
-    const { result, serverMs } = await this.evaluate(request);
-    const review = transformGeneralReview({
-      result,
-      sections: grouped.sections,
-      provider: this.provider.id,
-      resumeText: grouped.text,
-      telemetry: telemetryFrom(result, serverMs),
-    });
-    const evalRun = await this.persistEval({
+    const hierarchyEval = await this.evaluate(hierarchyRequest);
+    usage = addUsage(usage, usageFromResult(hierarchyEval.result));
+    await this.persistEval({
       kind: "general_review",
       resumeId: stored.id,
-      personaId: null,
-      request,
-      result,
+      personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
+      request: hierarchyRequest,
+      result: hierarchyEval.result,
+      review: null,
+      jevScore: null,
+    });
+    let roots = assembleTree(blocks, hierarchyEval.result.answers);
+    const ms = () => Math.max(0, Math.round(performance.now() - started));
+    yield { type: "hierarchy", roots, telemetry: telemetryOf(usage, ms()) };
+
+    const l1 = roots.filter((node) => node.level === 1);
+    const weightRequest: SystemOneRequest = {
+      state:
+        jobState && jobListing
+          ? {
+              resume: grouped,
+              sections: l1.map((node) => ({ id: node.id, kind: node.kind, title: node.title, text: node.text })),
+              persona: jobState,
+              job: jobListing,
+            }
+          : {
+              resume: grouped,
+              sections: l1.map((node) => ({ id: node.id, kind: node.kind, title: node.title, text: node.text })),
+            },
+      questions: buildWeightQuestions(l1),
+    };
+    const weightEval = await this.evaluate(weightRequest);
+    usage = addUsage(usage, usageFromResult(weightEval.result));
+    await this.persistEval({
+      kind: "general_review",
+      resumeId: stored.id,
+      personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
+      request: weightRequest,
+      result: weightEval.result,
+      review: null,
+      jevScore: null,
+    });
+    roots = applyL1Weights(roots, weightEval.result.answers);
+    yield { type: "weights", roots, telemetry: telemetryOf(usage, ms()) };
+
+    const suggestions: ReviewSuggestion[] = [];
+    const findings: ReviewFinding[] = [];
+    const targets = scoringTargets(roots);
+    const scored = await Promise.all(
+      targets.map(async (node) => {
+        const path = `\`node.text\` of section “${node.title}”`;
+        const request: SystemOneRequest = {
+          state:
+            jobState && jobListing
+              ? {
+                  node: { id: node.id, kind: node.kind, title: node.title, text: node.text },
+                  resume: { text: grouped.text },
+                  persona: jobState,
+                  job: jobListing,
+                }
+              : {
+                  node: { id: node.id, kind: node.kind, title: node.title, text: node.text },
+                  resume: { text: grouped.text },
+                },
+          questions: buildSectionQuestions(node.kind, node.id, path),
+        };
+        const evaluated = await this.evaluate(request);
+        return { node, request, evaluated };
+      }),
+    );
+
+    for (const item of scored) {
+      usage = addUsage(usage, usageFromResult(item.evaluated.result));
+      await this.persistEval({
+        kind: "general_review",
+        resumeId: stored.id,
+        personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
+        request: item.request,
+        result: item.evaluated.result,
+        review: null,
+        jevScore: null,
+      });
+      const weight = nodeWeightForScoring(roots, item.node);
+      const scoredNode = scoreHierarchyNode(item.node, item.evaluated.result.answers, weight);
+      roots = rollUpParents(replaceNode(roots, scoredNode.node));
+      suggestions.push(...scoredNode.suggestions);
+      findings.push(...scoredNode.findings);
+      yield {
+        type: "section",
+        node: scoredNode.node,
+        overall: climbOverall(roots),
+        suggestions: scoredNode.suggestions,
+        findings: scoredNode.findings,
+        telemetry: telemetryOf(usage, ms()),
+      };
+    }
+
+    const review = buildProctorReview({
+      roots,
+      provider: this.provider.id,
+      resumeText: grouped.text,
+      telemetry: telemetryOf(usage, ms()),
+      suggestions,
+      findings,
+      persona,
+      mode: persona ? "job" : "general",
+      model: hierarchyEval.result.model,
+      jobTarget,
+    });
+    const evalRun = await this.persistEval({
+      kind: persona ? "job_review" : "general_review",
+      resumeId: stored.id,
+      personaId: persona && persona.id !== JOB_TARGET_PERSONA_ID ? persona.id : null,
+      request: hierarchyRequest,
+      result: hierarchyEval.result,
       review,
       jevScore: review.jevScore.value,
     });
-    return { ...review, id: evalRun.id, resumeId: stored.id };
+    yield {
+      type: "complete",
+      review: { ...review, id: evalRun.id, resumeId: stored.id, personaId: persona?.id },
+    };
+  }
+
+  async generalReview(resumeText: string, meta?: ResumeMeta): Promise<PersistedReview> {
+    let complete: PersistedReview | null = null;
+    for await (const event of this.streamProctorReview(resumeText, meta)) {
+      if (event.type === "complete") {
+        complete = event.review as PersistedReview;
+      }
+      if (event.type === "error") {
+        throw new Error(event.message);
+      }
+    }
+    if (!complete) {
+      throw new Error("Proctor review did not complete");
+    }
+    return complete;
   }
 
   async jobReview(
@@ -287,19 +512,58 @@ export class ReviewEngine {
     if (!persona) {
       return { error: "not_found" };
     }
+    return this.runJobReview(resumeText, persona, meta);
+  }
+
+  async jobTargetReview(
+    resumeText: string,
+    jobTarget: JobTarget,
+    meta?: ResumeMeta,
+  ): Promise<PersistedReview> {
+    const target = trimJobTarget(jobTarget);
+    const persona = personaFromJobTarget(target);
+    let complete: PersistedReview | null = null;
+    for await (const event of this.streamProctorReview(resumeText, { ...meta, jobTarget: target }, persona)) {
+      if (event.type === "complete") {
+        complete = event.review as PersistedReview;
+      }
+      if (event.type === "error") {
+        throw new Error(event.message);
+      }
+    }
+    if (!complete) {
+      throw new Error("Proctor review did not complete");
+    }
+    return complete;
+  }
+
+  private async runJobReview(
+    resumeText: string,
+    persona: JobPersona,
+    meta?: ResumeMeta,
+  ): Promise<PersistedReview> {
     const stored = await this.persistResume({
       text: resumeText,
       filename: meta?.filename,
       source: meta?.source ?? "review",
     });
     const grouped = groupResumeText(resumeText);
+    const jobTarget = hasJobTarget(meta?.jobTarget) ? trimJobTarget(meta?.jobTarget) : undefined;
     const request: SystemOneRequest = {
       state: {
         persona: {
           title: persona.title,
           tags: persona.tags,
           jobDescription: persona.jobDescription,
+          jobUrl: jobTarget?.jobUrl ?? "",
+          company: jobTarget?.company ?? "",
           requirements: persona.requirements,
+        },
+        job: {
+          title: persona.title,
+          company: jobTarget?.company ?? "",
+          url: jobTarget?.jobUrl ?? "",
+          description: persona.jobDescription,
         },
         resume: grouped,
       },
@@ -316,11 +580,12 @@ export class ReviewEngine {
       provider: this.provider.id,
       resumeText: grouped.text,
       telemetry: telemetryFrom(result, serverMs),
+      jobTarget,
     });
     const evalRun = await this.persistEval({
       kind: "job_review",
       resumeId: stored.id,
-      personaId: persona.id,
+      personaId: persona.id === JOB_TARGET_PERSONA_ID ? null : persona.id,
       request,
       result,
       review,

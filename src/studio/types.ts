@@ -14,6 +14,14 @@ export type GlyphBox = PageBox & {
   str: string;
 };
 
+export type LedgerRun = {
+  page: number;
+  str: string;
+  flatStart: number;
+  flatEnd: number;
+  box: PageBox | null;
+};
+
 export type OverlayFinding = {
   id: string;
   severity: Severity;
@@ -58,6 +66,26 @@ export type StudioScore = {
   weak: string;
   dimensions: ScoreDimension[];
   suggestions: SuggestionCard[];
+  targetLabel?: string;
+  targetFit?: string;
+  telemetry?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    costUsd: number;
+    requestCount: number;
+    serverMs: number;
+  };
+  hierarchy?: Array<{
+    id: string;
+    title: string;
+    kind: string;
+    weight: number | null;
+    score01: number | null;
+    contribution: number | null;
+    status: "pending" | "scored";
+    children: Array<{ id: string; title: string; status: "pending" | "scored"; contribution: number | null }>;
+  }>;
 };
 
 export type PageMetrics = {
@@ -82,6 +110,8 @@ export type SuggestionCard = {
   detail: string;
   quote?: string;
   findingId?: string;
+  sectionId?: string;
+  recoverPoints?: number;
   box: PageBox | null;
 };
 

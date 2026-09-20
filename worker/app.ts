@@ -9,6 +9,7 @@ import {
   type RateLimitCheckpoint,
   type RateLimitErrorBody,
 } from "../shared/rate-limit.ts";
+import { hasJobTarget, trimJobTarget, type JobTarget } from "../shared/job-target.ts";
 import { createProvider, MAX_RESUME_CHARS, ReviewEngine } from "./engine.ts";
 import { MemoryRateLimiter, RateLimitedError, type RateLimiter } from "./rate-limit.ts";
 import { createD1Stores, D1VisitorStore } from "./storage/d1.ts";
@@ -212,6 +213,20 @@ function requiredString(body: Record<string, unknown>, field: string): string {
     throw new HTTPException(400, { message: `${field} is required` });
   }
   return value;
+}
+
+function optionalString(body: Record<string, unknown>, field: string): string | undefined {
+  return readString(body[field])?.trim() || undefined;
+}
+
+function readJobTarget(body: Record<string, unknown>): JobTarget | undefined {
+  const target = trimJobTarget({
+    jobText: optionalString(body, "jobText") ?? optionalString(body, "jobDescription"),
+    jobUrl: optionalString(body, "jobUrl"),
+    jobTitle: optionalString(body, "jobTitle"),
+    company: optionalString(body, "company"),
+  });
+  return hasJobTarget(target) ? target : undefined;
 }
 
 function assertResumeSize(text: string, label: string): void {
@@ -427,9 +442,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     const resumeText = requiredString(body, "resumeText");
     assertResumeSize(resumeText, "resume text");
     const personaId = readString(body.personaId)?.trim();
+    const jobTarget = readJobTarget(body);
+    if (jobTarget?.jobText) {
+      assertResumeSize(jobTarget.jobText, "job text");
+    }
     const review = await c.get("engine").review(resumeText, personaId, {
       filename: readString(body.filename),
       source: readString(body.source),
+      jobTarget,
     });
     if ("error" in review) {
       throw new HTTPException(404, { message: "Persona not found" });
@@ -437,15 +457,66 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     return c.json(review);
   });
 
+  app.post("/api/reviews/stream", async (c) => {
+    assertRateLimit(c, "resumeReview");
+    const body = await jsonObject(c);
+    const resumeText = requiredString(body, "resumeText");
+    assertResumeSize(resumeText, "resume text");
+    const personaId = readString(body.personaId)?.trim();
+    const jobTarget = readJobTarget(body);
+    if (jobTarget?.jobText) {
+      assertResumeSize(jobTarget.jobText, "job text");
+    }
+    const engine = c.get("engine");
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of engine.streamReview(resumeText, personaId, {
+            filename: readString(body.filename),
+            source: readString(body.source),
+            jobTarget,
+          })) {
+            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          }
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : "Proctor stream failed";
+          controller.enqueue(encoder.encode(`${JSON.stringify({ type: "error", message })}\n`));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  });
+
   app.post("/api/reviews/job", async (c) => {
     assertRateLimit(c, "resumeReview");
     const body = await jsonObject(c);
     const resumeText = requiredString(body, "resumeText");
-    const personaId = requiredString(body, "personaId");
     assertResumeSize(resumeText, "resume text");
+    const jobTarget = readJobTarget(body);
+    if (jobTarget?.jobText) {
+      assertResumeSize(jobTarget.jobText, "job text");
+    }
+    if (jobTarget && !readString(body.personaId)?.trim()) {
+      const review = await c.get("engine").jobTargetReview(resumeText, jobTarget, {
+        filename: readString(body.filename),
+        source: readString(body.source),
+        jobTarget,
+      });
+      return c.json(review);
+    }
+    const personaId = requiredString(body, "personaId");
     const review = await c.get("engine").jobReview(resumeText, personaId, {
       filename: readString(body.filename),
       source: readString(body.source),
+      jobTarget,
     });
     if ("error" in review) {
       throw new HTTPException(404, { message: "Persona not found" });

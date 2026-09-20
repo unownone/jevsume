@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { formatJevScore, scoreTone } from "../../shared/format.ts";
+import { formatJevScore, formatReviewCost, formatTokenCount, scoreTone } from "../../shared/format.ts";
 import { SuggestionList } from "./SuggestionList.tsx";
 import type { StudioScore } from "./types.ts";
 
@@ -43,6 +43,14 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
         <div>
           <h2>JevScore</h2>
           <p>{score.verdict}</p>
+          {score.targetLabel ? (
+            <p className="score-target">
+              Rated against {score.targetLabel}
+              {score.targetFit ? ` · ${score.targetFit}` : ""}
+            </p>
+          ) : (
+            <p className="score-target is-general">General review — no listing attached</p>
+          )}
         </div>
       </div>
       <div className="score-pair">
@@ -55,6 +63,35 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
           <span>Evidence</span>
         </div>
       </div>
+      {score.telemetry ? (
+        <p className="score-cost" aria-label="Jev token cost">
+          {formatTokenCount(score.telemetry.totalTokens)} tokens · {formatTokenCount(score.telemetry.inputTokens)} in /{" "}
+          {formatTokenCount(score.telemetry.outputTokens)} out · {formatReviewCost(score.telemetry.costUsd)}
+          {score.telemetry.requestCount > 1 ? ` · ${score.telemetry.requestCount} reads` : ""}
+        </p>
+      ) : null}
+      {score.hierarchy && score.hierarchy.length > 0 ? (
+        <ul className="score-tree">
+          {score.hierarchy.map((node) => (
+            <li key={node.id} className={node.status}>
+              <span>
+                {node.title}
+                {node.weight !== null ? ` · ${node.weight}` : ""}
+              </span>
+              <strong>{node.status === "scored" ? Math.round(node.contribution ?? 0) : "…"}</strong>
+              {node.children.length > 0 ? (
+                <ul>
+                  {node.children.map((child) => (
+                    <li key={child.id} className={child.status}>
+                      {child.title}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <dl className="judge-lines">
         <div>
           <dt>Leadership</dt>
