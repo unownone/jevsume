@@ -11,23 +11,33 @@ Jev does not generate prose. Scores, verdicts, and probabilities come from Syste
 
 ## MCP + Agent Skill
 
-Any MCP client can run the same review without the studio UI.
+Any MCP client can run the same Jev review without the studio UI. Tools return compact JSON (score, findings, suggestions, gaps) — not the full review payload.
 
-- **Hosted (no auth):** Streamable HTTP at `/mcp`. Reviews share the platform IP rate limit with `POST /api/reviews`. OAuth can wrap this later.
-- **Local npx (your TypeSafe key):** `npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY`
-- **Skill:** [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md) — proctor a resume, pick a baked-in job lens by id, rewrite, re-review.
+### Hosted (no API key)
 
-Tools stay small: `list_job_lenses`, `get_job_lens`, `suggest_job_lens`, `review_resume`. Pass `resumeText` plus optional `jobLensId` or `jobText`. Design: [`docs/superpowers/specs/2026-09-21-jevsume-mcp-skill-design.md`](docs/superpowers/specs/2026-09-21-jevsume-mcp-skill-design.md).
+Streamable HTTP at **`/mcp`** on the Worker. No auth yet (OAuth can wrap this later). `review_resume` shares the platform IP rate limit (10 / minute) with `POST /api/reviews`.
+
+With `pnpm dev`, the endpoint is `http://localhost:5173/mcp`. After deploy, it is `https://<your-worker>/mcp` on the same host as the app.
 
 ```json
 {
   "mcpServers": {
     "jevsume": {
-      "url": "https://<your-jevsume-host>/mcp"
+      "url": "http://localhost:5173/mcp"
     }
   }
 }
 ```
+
+### Local npx (your TypeSafe key)
+
+Runs Jev with **your** key. Does not use the hosted rate limit.
+
+```bash
+npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY
+```
+
+From a clone: `pnpm mcp -- --api-key $TYPESAFE_API_KEY`. `--mock` uses the deterministic provider (tests/dev only).
 
 ```json
 {
@@ -39,6 +49,21 @@ Tools stay small: `list_job_lenses`, `get_job_lens`, `suggest_job_lens`, `review
   }
 }
 ```
+
+### Tools
+
+| Tool | Use |
+| --- | --- |
+| `list_job_lenses` | Baked-in catalog (`default` + presets). Optional `track` / `query`. Ids, titles, tags, blurb — no job text. |
+| `get_job_lens` | Full listing by id. Call only when you must quote the JD. |
+| `suggest_job_lens` | One lens id from `resumeText`. |
+| `review_resume` | `resumeText` plus optional `jobLensId` and/or `jobText` / `jobTitle` / `company` / `jobUrl`. |
+
+`jobLensId` accepts `default`, a preset id (`swe-staff`), or `preset:swe-staff`. Pasted `jobText` wins over a lens id. Never send PDF bytes — extract text first.
+
+### Skill
+
+[`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md) — pick a lens, review, rewrite the weak bullets, re-review. Do not invent Jev scores.
 
 ## Stack
 
@@ -106,3 +131,4 @@ Official TypeSafe env name is `TYPESAFE_API_KEY` ([SDK ENV](https://docs.typesaf
 - Research: [`docs/research/2026-09-17-jev-typesafe-resume-review.md`](docs/research/2026-09-17-jev-typesafe-resume-review.md)
 - Design: [`docs/superpowers/specs/2026-09-17-jevsume-design.md`](docs/superpowers/specs/2026-09-17-jevsume-design.md)
 - Plan: [`docs/superpowers/plans/2026-09-17-jevsume-plan.md`](docs/superpowers/plans/2026-09-17-jevsume-plan.md)
+- MCP skill: [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md)
