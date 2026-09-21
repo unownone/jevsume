@@ -598,24 +598,6 @@ export default function StudioApp() {
             {noteDetail}
           </div>
         ) : null}
-        {false && active && !compact ? (
-          <div className="note-rail" ref={noteRef}>
-            <OverlayNote
-              key={active.id}
-              finding={active}
-              messages={messages}
-              draft={draft}
-              compact={false}
-              total={findings.length}
-              onDraft={setDraft}
-              onSend={onSend}
-              onClose={() => setActiveId(null)}
-              onIgnore={onIgnore}
-              onPrev={() => stepFinding(-1)}
-              onNext={() => stepFinding(1)}
-            />
-          </div>
-        ) : null}
         {!compact ? <Leader key={active?.id ?? "none"} from={fromRect} to={toRect} /> : null}
       </main>
 
