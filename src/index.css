@@ -1,5 +1,60 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
 :root {
   color-scheme: dark;
+  --radius: 0.5rem;
+  --background: #07070d;
+  --foreground: #f4f1ea;
+  --card: #12121c;
+  --card-foreground: #f4f1ea;
+  --popover: #12121c;
+  --popover-foreground: #f4f1ea;
+  --primary: #e8c572;
+  --primary-foreground: #1a1205;
+  --secondary: #101018;
+  --secondary-foreground: #f4f1ea;
+  --muted: #1b1b24;
+  --muted-foreground: #c4bba8;
+  --accent: #7ee0d6;
+  --accent-foreground: #041816;
+  --destructive: #ff8fa3;
+  --border: rgba(244, 241, 234, 0.12);
+  --input: rgba(244, 241, 234, 0.14);
+  --ring: #e8c572;
+  --success: #8ee0a8;
+  --warning: #e8c572;
   --bg: #07070d;
   --bg-2: #101018;
   --panel: #12121c;
