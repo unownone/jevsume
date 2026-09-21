@@ -1,5 +1,8 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
+import { motion } from "framer-motion";
 import { formatJevScore, formatReviewCost, formatTokenCount, scoreTone } from "../../shared/format.ts";
+import { AnimatedScoreBar } from "@/components/prosume-motion-ui.tsx";
+import { resolvePanelTransition, useAnimatedScore, usePrefersReducedMotion } from "@/lib/prosume-motion.ts";
 import { SuggestionList } from "./SuggestionList.tsx";
 import type { StudioScore } from "./types.ts";
 
@@ -12,27 +15,9 @@ type ScorePanelProps = {
 
 export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProps) {
   const tone = scoreTone(score.value);
-  const [shown, setShown] = useState(0);
-
-  useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
-      setShown(score.value);
-      return;
-    }
-    let frame = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / 720);
-      const eased = 1 - (1 - t) ** 3;
-      setShown(Math.round(score.value * eased));
-      if (t < 1) {
-        frame = requestAnimationFrame(tick);
-      }
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [score.value]);
+  const shown = useAnimatedScore(score.value);
+  const validityShown = useAnimatedScore(score.validity);
+  const evidenceShown = useAnimatedScore(score.evidence);
 
   return (
     <aside className={`score-panel ${tone}`} aria-label="JevScore">
@@ -55,11 +40,11 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
       </div>
       <div className="score-pair">
         <div>
-          <strong>{formatJevScore(score.validity)}</strong>
+          <strong>{formatJevScore(validityShown)}</strong>
           <span>Validity</span>
         </div>
         <div>
-          <strong>{formatJevScore(score.evidence)}</strong>
+          <strong>{formatJevScore(evidenceShown)}</strong>
           <span>Evidence</span>
         </div>
       </div>
@@ -91,64 +76,51 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
           <dd>{score.rewriteLine}</dd>
         </div>
       </dl>
-      {score.hierarchy && score.hierarchy.length > 0 ? (
-        <ul className="score-tree">
-          {score.hierarchy.map((node) => (
-            <li key={node.id} className={node.status}>
-              <span>
-                {node.title}
-                {node.weight !== null ? ` · ${node.weight}` : ""}
-              </span>
-              <strong>{node.status === "scored" ? Math.round(node.contribution ?? 0) : "…"}</strong>
-              {node.children.length > 0 ? (
-                <ul>
-                  {node.children.map((child) => (
-                    <li key={child.id} className={child.status}>
-                      <span>{child.title}</span>
-                      <strong>
-                        {child.status === "scored" ? Math.round(child.contribution ?? 0) : "…"}
-                      </strong>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
       <div className="score-bars">
-        {score.dimensions.map((dimension, index) => (
-          <div className="score-bar" key={dimension.id} style={{ "--i": index + 1 } as CSSProperties}>
-            <label>
-              <span>{dimension.label}</span>
-              <span>
-                {dimension.max > 4 ? Math.round(dimension.score) : dimension.score.toFixed(1)} / {dimension.max}
-              </span>
-            </label>
-            <div className="track">
-              <div
-                key={`${dimension.id}-${dimension.score}-${dimension.max}`}
-                className="fill"
-                style={
-                  {
-                    "--p": String(dimension.max > 0 ? Math.min(1, Math.max(0, dimension.score / dimension.max)) : 0),
-                  } as CSSProperties
-                }
-              />
+        {score.dimensions.map((dimension, index) => {
+          const ratio = dimension.max > 0 ? Math.min(1, Math.max(0, dimension.score / dimension.max)) : 0;
+          return (
+            <div className="score-bar" key={dimension.id} style={{ "--i": index + 1 } as CSSProperties}>
+              <label>
+                <span>{dimension.label}</span>
+                <span>
+                  {dimension.max > 4 ? Math.round(dimension.score) : dimension.score.toFixed(1)} / {dimension.max}
+                </span>
+              </label>
+              <div className="track">
+                <AnimatedScoreBar className="fill is-motion" ratio={ratio} delayIndex={index} />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <p className="score-strong">
-        Strong: {score.strong}
-      </p>
-      <p className="score-weak">
-        Weak: {score.weak}
-      </p>
+      <p className="score-strong">Strong: {score.strong}</p>
+      <p className="score-weak">Weak: {score.weak}</p>
       <p className="score-count">
         {score.noteCount} {score.noteCount === 1 ? "note" : "notes"} on the page
       </p>
       <SuggestionList cards={score.suggestions} selected={selected} onToggle={onToggle} onOpen={onOpen} />
     </aside>
+  );
+}
+
+export function AnimatedScoreChip({ value }: { value: number }) {
+  return formatJevScore(useAnimatedScore(value));
+}
+
+export function StudioReadingOrb() {
+  const reduced = usePrefersReducedMotion();
+  return (
+    <motion.div
+      className="score-orb is-reading"
+      aria-label="Reading"
+      initial={reduced ? false : { opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={resolvePanelTransition(reduced)}
+    >
+      <span />
+      <span />
+      <span />
+    </motion.div>
   );
 }
