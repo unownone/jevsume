@@ -10,7 +10,7 @@ import { SiteAppRoutes } from "@/SiteApp.tsx";
 import { LegacyViewRedirect } from "@/components/prosume/LegacyViewRedirect.tsx";
 import { resolveSiteRoute, sitePath } from "@/lib/routes.ts";
 import { hostedMcpUrl } from "@/lib/mcp-snippets.ts";
-import { AGENTS_PATH, MCP_PATH } from "@/lib/site-links.ts";
+import { AGENTS_PATH, LOCAL_MCP_COMMAND, MCP_PATH } from "@/lib/site-links.ts";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -46,7 +46,7 @@ describe("UAT: route loading and navigation", () => {
 
     await router.navigate(AGENTS_PATH);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /MCP & agents/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Bring Pro-sume into your AI assistant/i })).toBeInTheDocument();
     });
 
     await router.navigate(sitePath("classic"));
@@ -94,13 +94,16 @@ describe("UAT: route loading and navigation", () => {
 });
 
 describe("UAT: agents page snippets and a11y affordances", () => {
-  it("shows hosted snippet URL, copy controls, and mobile menu", async () => {
+  it("shows hosted snippet URL, copy controls, hero CTA, and mobile menu", async () => {
     const user = userEvent.setup();
     renderSiteAt([AGENTS_PATH]);
     await waitFor(() => screen.getByText(/Hosted MCP \(all URL-based clients\)/i));
     const snippet = screen.getAllByRole("code").find((node) => node.textContent?.includes(hostedMcpUrl(window.location.origin)));
     expect(snippet?.textContent).toContain(hostedMcpUrl(window.location.origin));
-    expect(screen.getAllByRole("button", { name: "Copy" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Copy/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Review resume/i }).some((a) => a.getAttribute("href") === "/review")).toBe(
+      true,
+    );
 
     const menu = screen.getByRole("button", { name: /open menu/i });
     expect(menu.className).toMatch(/md:hidden/);
@@ -114,6 +117,18 @@ describe("UAT: agents page snippets and a11y affordances", () => {
       expect(screen.getAllByText(new RegExp(MCP_PATH)).length).toBeGreaterThan(0);
       expect(screen.getByText(/not the setup page at \/agents/i)).toBeInTheDocument();
     });
+  });
+
+  it("agents page uses tabbed connection mode and client hosts", async () => {
+    const user = userEvent.setup();
+    renderSiteAt([AGENTS_PATH]);
+    await waitFor(() => screen.getByRole("tablist", { name: /MCP connection mode/i }));
+    await user.click(screen.getByRole("tab", { name: /Option 02 · Local stdio/i }));
+    const localPanel = screen.getByRole("tabpanel", { name: /Option 02 · Local stdio/i });
+    expect(within(localPanel).getByRole("code").textContent).toMatch(new RegExp(LOCAL_MCP_COMMAND));
+    const clientList = screen.getByRole("tablist", { name: /MCP client host/i });
+    await user.click(within(clientList).getByRole("tab", { name: "Generic" }));
+    expect(screen.getByRole("tabpanel", { name: /Generic/i })).toBeVisible();
   });
 });
 

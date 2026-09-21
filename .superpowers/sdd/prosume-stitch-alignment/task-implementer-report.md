@@ -2,60 +2,41 @@
 
 ## Status
 
-**Complete** on branch `cursor/prosume-stitch-alignment-47f5`. Routed Pro-sume revamp with Stitch-aligned branding, semantic studio bridge, per-client hosted MCP snippets, and a dedicated UAT vitest suite.
+**Complete** on branch `cursor/prosume-stitch-alignment-47f5`. MCP `/agents` page recomposed to match Stitch layout (hero, status, hosted/local primary tabs, client workbench, tools grid, privacy, footer CTA) while preserving shipped MCP facts.
 
-## Final verification (2026-09-21)
+## Final verification (2026-09-21, agents page pass)
 
 ```text
-pnpm typecheck
-> tsc -b --pretty false
-(exit 0)
-
-pnpm test
-> vitest run
-Test Files  32 passed (32)
-Tests  176 passed (176)
-(exit 0)
-
-pnpm uat
-> vitest run --config vitest.uat.config.ts
-Test Files  1 passed (1)
-Tests  9 passed (9)
-(exit 0)
-
-pnpm build
-> tsc -b && vite build
-✓ built (worker + client; ClassicReviewPage chunk ~514 kB)
-(exit 0)
+pnpm typecheck — exit 0
+pnpm test — 33 files, 185 tests, exit 0
+pnpm uat — 10 tests, exit 0
+pnpm build — exit 0
 ```
+
+Playwright smoke on `/agents`: not configured in this repo (`package.json` has no Playwright script).
 
 ## This pass
 
 | Area | Change |
 | --- | --- |
-| MCP `/agents` | `HostedMcpPanel` + per-client **hosted** snippets in `mcp-snippets.ts` |
-| Studio Stitch bridge | `semantic-bridge.css`, shadcn `Button` on `DropGate` / `StudioSiteNav`; `docs/superpowers/studio-semantic-bridge.md` |
-| Routing tests | `SiteAppRoutes` for UAT without nested `BrowserRouter` |
-| UAT | `pnpm uat` → `vitest.uat.config.ts` + `test/uat/site.smoke.test.tsx` |
-| Vitest | Main config excludes `test/uat/**`; `setup-dom.ts` jsdom `matchMedia` shim |
-| Brand assets | `prosume-mark.svg`, resized favicons from Stitch archive |
+| `/agents` layout | Stitch-aligned hero + gateway/protocol status; primary **Hosted vs Local** card tabs; integration workbench with animated client tabs |
+| Clipboard | `McpSnippetBlock` with visible Copied state + `aria-live` |
+| Tools | `AGENTS_MCP_TOOLS` lists `list_job_lenses`, `get_job_lens`, `suggest_job_lens`, `review_resume` |
+| Tests | Expanded `test/agents-page.test.tsx`; UAT covers tab switching, CTAs, connection mode |
+| Copy | No SSE, fake package, rewrite tools, or unsupported privacy claims |
 
 ## Ground truth
 
-- Plan: `/opt/cursor/artifacts/plans/jevsume_brand_revamp_5eee7c62.plan.md`
-- Visual: `stitch_resume_doctor_9bba.zip`
-- MCP: `docs/mcp-local.md`
-
-## Superdesign
-
-`npx --yes @superdesign/cli@latest` v0.14.0 — not authenticated; Stitch archive as visual source.
+- Hosted: Streamable HTTP at `/mcp`, no API key, shared Worker rate limit
+- Local: `npx -y github:unownone/jevsume` + `TYPESAFE_API_KEY` → api.typesafe.ai
+- Visual: Stitch reference + `docs/design/prosume-stitch/agents-desktop.png`
 
 ## Remaining concerns
 
-- No Superdesign canvas pixel diff without auth.
-- Classic review chunk ~514 kB; Lucide vs Material Symbols.
-- GitHub stars API fallback.
+- No Playwright pixel/regression suite for `/agents`
+- Classic review chunk ~514 kB
+- Superdesign canvas diff still blocked without auth
 
 ## Claims policy
 
-No unsupported rewrite/ATS/privacy/speed/cost claims on landing or agents.
+Landing and agents copy avoid unsupported rewrite/ATS/zero-retention/in-browser-only claims.

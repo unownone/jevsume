@@ -41,7 +41,86 @@ export const landingCopy = {
   closingTitle: "Ready when you are",
   closingPrimary: "Open the review studio",
   closingSecondary: "Set up MCP",
+  heroPreviewEyebrow: "Target lens",
+  heroPreviewLens: "General resume review",
+  heroPreviewDropTitle: "Drag & drop your resume (PDF)",
+  heroPreviewDropHint: "or open the review studio to browse files",
+  heroPreviewSample: "Try the demo PDF in the studio",
+  telemetryIndex: "01",
+  telemetrySlug: "LIVE_TELEMETRY",
+  telemetryTitle: "Interactive forensic diagnostic",
+  telemetryStatus: "Demo · typed JevScore dimensions",
+  telemetryScoreLabel: "Sample JevScore",
+  telemetryScoreHint: "Illustrative aggregate from a demo run—not your document.",
+  telemetryDimensions: [
+    { label: "Structure & parsing", value: 76, hint: "Sections the extractor could map cleanly." },
+    { label: "Action verbs & tone", value: 85, hint: "Active voice and clarity on key bullets." },
+    { label: "Quantified impact", value: 68, hint: "Metrics and outcomes called out explicitly.", warn: true },
+  ] as const,
+  telemetryFixTitle: "Priority diagnostic fix",
+  telemetryFixImpact: "Example impact +14 pts",
+  telemetryFixOriginalLabel: "Original formulation",
+  telemetryFixOriginal:
+    "Helped improve platform reliability and worked with cross-functional teams on various initiatives.",
+  telemetryFixSuggestedLabel: "Suggested quantified rewrite",
+  telemetryFixSuggested:
+    "Reduced incident volume 22% by leading a cross-team reliability program across 85,000 active accounts.",
+  telemetryFixCopy: "Copy suggestion",
+  telemetryPreviewFile: "sample_resume.pdf",
+  telemetryPreviewBadge: "Demo · parser-ready text",
+  integrationIndex: "02",
+  integrationSlug: "INTEGRATION_WORKFLOWS",
+  integrationTitle: "Choose how you inspect and refine",
+  integrationBody:
+    "Use the in-browser review studio on this Worker, or connect the same Jev tools through MCP in the assistant you already use.",
+  integrationWebTitle: "Instant web review",
+  integrationWebPoints: [
+    "Upload or paste on /review—the same API the Worker scores.",
+    "JevScore, dimension bars, and suggestions composed in the UI.",
+    "Copy suggestions yourself; Jev does not rewrite the PDF.",
+  ] as const,
+  integrationWebCta: "Launch in-browser review",
+  integrationMcpTitle: "MCP for AI agents",
+  integrationMcpPoints: [
+    "Model Context Protocol tools: review_resume and job lenses.",
+    "Hosted Streamable HTTP at /mcp or local stdio with your TypeSafe key.",
+    "Setup snippets for Cursor, Claude, Codex, and generic hosts.",
+  ] as const,
+  integrationMcpCta: "View MCP integration setup",
+  proofEyebrow: "What you can verify",
+  proofHeadline: "Typed judgments, visible telemetry, and two connection modes—without marketing fluff.",
+  proofCards: [
+    {
+      title: "Jev judges; UI composes",
+      body: "Scores and findings come from System One calls. Readable copy and bars are assembled in the app—not a generic chat rewrite.",
+    },
+    {
+      title: "Telemetry per run",
+      body: "The studio reports server time, token counts, and estimated input cost when the Worker returns them. Timing and spend vary by resume length and provider.",
+    },
+    {
+      title: "Hosted or local MCP",
+      body: "Use the browser studio on this origin, call /mcp without an API key, or run local stdio with TYPESAFE_API_KEY on your machine.",
+    },
+  ] as const,
+  trustItems: [
+    "No automatic resume rewrite",
+    "Typed System One judgments",
+    "Browser studio or MCP",
+  ] as const,
 } as const;
+
+/** Patterns that must not appear in public landing copy (unsupported or invented claims). */
+export const LANDING_FORBIDDEN_PATTERNS = [
+  /25,?000/i,
+  /100%\s*private/i,
+  /zero data retention/i,
+  /standard ats compliant/i,
+  /under a second/i,
+  /\$0\.042/,
+  /automatic(ally)?\s*rewrite/i,
+  /1\.4k/i,
+] as const;
 
 export const reviewCopy = {
   heroTitle: "Drop a resume PDF",
@@ -52,16 +131,38 @@ export const reviewCopy = {
 } as const;
 
 export const agentsCopy = {
-  title: "MCP & agents",
+  eyebrow: "Model Context Protocol · Jev review tools",
+  title: "Bring Pro-sume into your AI assistant",
   intro:
-    "Run the same Jev review tools from Claude, Claude Code, Codex, Codex Chat, Cursor, or any MCP client—hosted on the Worker or locally with your key.",
-  hostedTitle: "Hosted (no API key)",
+    "Connect Claude, Claude Code, Codex, Codex Chat, Cursor, or any MCP host to the same Jev lenses and review_resume flow—hosted on this Worker or locally with your TypeSafe key.",
+  protocolLabel: "Protocol",
+  protocolValue: "Streamable HTTP",
+  gatewayLabel: "Worker endpoint",
+  gatewayValue: "Ready · /mcp",
+  hostedTitle: "Hosted endpoint",
+  hostedBadge: "No API key",
   hostedBody:
-    "Streamable HTTP at /mcp on this site. No auth yet. review_resume shares the platform IP rate limit with POST /api/reviews.",
-  localTitle: "Local npx (your TypeSafe key)",
+    "Streamable HTTP at /mcp on this origin. No auth yet. review_resume shares the platform IP rate limit with POST /api/reviews. This is the Worker route—not the setup page at /agents.",
+  localTitle: "Local stdio",
+  localBadge: "Your TypeSafe key",
   localBody:
     "Runs on your machine with TYPESAFE_API_KEY. Reviews call api.typesafe.ai and do not use the hosted Worker rate limit.",
+  workbenchEyebrow: "Integration workbench",
+  workbenchTitle: "Client configuration guide",
+  workbenchHint: "Pick a host, then copy the block for your connection mode above.",
+  toolsEyebrow: "Exposed tools",
+  toolsTitle: "Available MCP capabilities",
+  activationTitle: "Activation steps",
+  activationSteps: [
+    "Copy the config block into the path shown for your host.",
+    "Restart or reload the MCP host so it picks up the server.",
+    "In chat, ask the agent to call review_resume or list_job_lenses with resume text.",
+  ] as const,
+  heroReviewCta: "Review resume",
+  heroConnectCta: "Jump to client configs",
+  footerReviewCta: "Open review studio",
+  footerMcpCta: "Copy hosted URL",
   privacyTitle: "Privacy & limits",
   privacyBody:
-    "Hosted reviews stay on the Worker path you already use in the browser. Local MCP keeps keys in your host env—never commit them.",
+    "Hosted reviews use the same Worker path as the browser studio. Local MCP keeps TYPESAFE_API_KEY in your host environment—never commit keys. See docs/mcp-local.md for env setup.",
 } as const;

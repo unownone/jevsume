@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { McpSnippetBlock } from "@/components/prosume/McpSnippetBlock.tsx";
 import { genericHostedSnippet } from "@/lib/mcp-snippets.ts";
 import { MCP_PATH } from "@/lib/site-links.ts";
 
@@ -19,31 +19,8 @@ export function HostedMcpPanel({ origin }: HostedMcpPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <SnippetBlock snippet={snippet} />
+        <McpSnippetBlock snippet={snippet} />
       </CardContent>
     </Card>
-  );
-}
-
-function SnippetBlock({ snippet }: { snippet: { label: string; text: string } }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/40">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <span className="text-xs font-medium text-muted-foreground">{snippet.label}</span>
-        <Button
-          type="button"
-          size="xs"
-          variant="secondary"
-          onClick={() => {
-            void navigator.clipboard.writeText(snippet.text);
-          }}
-        >
-          Copy
-        </Button>
-      </div>
-      <pre className="max-h-72 overflow-auto p-3 text-xs leading-relaxed text-foreground">
-        <code>{snippet.text}</code>
-      </pre>
-    </div>
   );
 }
