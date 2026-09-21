@@ -34,21 +34,30 @@ function RouteFallback() {
   );
 }
 
+/** Route tree without a router wrapper — use inside BrowserRouter, MemoryRouter, or RouterProvider. */
+export function SiteAppRoutes() {
+  return (
+    <>
+      <LegacyViewRedirect />
+      <RouteMetadata />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path={sitePath("landing")} element={<LandingPage />} />
+          <Route path={sitePath("review")} element={<ReviewStudioPage />} />
+          <Route path={sitePath("agents")} element={<AgentsPage />} />
+          <Route path={sitePath("classic")} element={<ClassicReviewPage />} />
+          <Route path="*" element={<Navigate to={sitePath("landing")} replace />} />
+        </Routes>
+      </Suspense>
+    </>
+  );
+}
+
 export default function SiteApp() {
   return (
     <TooltipProvider>
       <BrowserRouter>
-        <LegacyViewRedirect />
-        <RouteMetadata />
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path={sitePath("landing")} element={<LandingPage />} />
-            <Route path={sitePath("review")} element={<ReviewStudioPage />} />
-            <Route path={sitePath("agents")} element={<AgentsPage />} />
-            <Route path={sitePath("classic")} element={<ClassicReviewPage />} />
-            <Route path="*" element={<Navigate to={sitePath("landing")} replace />} />
-          </Routes>
-        </Suspense>
+        <SiteAppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   );

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { SiteShell } from "@/components/prosume/SiteShell.tsx";
+import { HostedMcpPanel } from "@/components/prosume/HostedMcpPanel.tsx";
 import { McpSetupSnippet } from "@/components/prosume/McpSetupSnippet.tsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
@@ -40,6 +41,8 @@ export default function AgentsPage() {
           <AlertTitle>{agentsCopy.localTitle}</AlertTitle>
           <AlertDescription>{agentsCopy.localBody}</AlertDescription>
         </Alert>
+
+        <HostedMcpPanel origin={typeof window !== "undefined" ? window.location.origin : "https://your-worker.example"} />
 
         <Card>
           <CardHeader>

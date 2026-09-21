@@ -9,6 +9,7 @@ describe("SiteApp code splitting", () => {
   it("lazy-loads review and classic routes", () => {
     const source = readFileSync(path.join(process.cwd(), "src/SiteApp.tsx"), "utf8");
     expect(source).toContain('lazy(() => import("@/pages/ReviewStudioPage.tsx")');
+    expect(source).toContain("SiteAppRoutes");
     expect(source).toContain('lazy(() => import("@/pages/ClassicReviewPage.tsx")');
     expect(source).toContain("<Suspense");
   });
