@@ -10,7 +10,7 @@ export function BrandMark({ className, size = 32 }: BrandMarkProps) {
   return (
     <img
       className={cn("rounded-md border border-border bg-card", className)}
-      src="/jev-mark.svg"
+      src="/prosume-mark.svg"
       width={size}
       height={size}
       alt=""
