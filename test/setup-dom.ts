@@ -1,26 +1,44 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
-if (typeof globalThis.ResizeObserver === "undefined") {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as typeof ResizeObserver;
+function createMatchMedia(matches = false) {
+  return {
+    matches,
+    media: "",
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
 }
 
 if (typeof window !== "undefined") {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  });
+  if (typeof window.matchMedia !== "function") {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation(() => createMatchMedia(false)),
+    });
+  } else {
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = vi.fn().mockImplementation((query: string) => {
+      const result = original(query);
+      return {
+        ...result,
+        addEventListener: result.addEventListener?.bind(result) ?? vi.fn(),
+        removeEventListener: result.removeEventListener?.bind(result) ?? vi.fn(),
+      };
+    });
+  }
+}
+
+if (typeof globalThis.IntersectionObserver === "undefined") {
+  class MockIntersectionObserver {
+    constructor(_callback: IntersectionObserverCallback) {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  globalThis.IntersectionObserver = MockIntersectionObserver as typeof IntersectionObserver;
 }

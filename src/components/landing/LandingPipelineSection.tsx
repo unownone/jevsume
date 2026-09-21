@@ -1,6 +1,7 @@
 import { CheckCircle2, Layers, ScanLine, Sparkles } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { LandingReveal } from "@/components/landing/LandingReveal.tsx";
+import { MotionStagger, MotionStaggerItem } from "@/components/prosume-motion-ui.tsx";
 import { LANDING_CARD_INTERACTION } from "@/components/landing/landing-motion.ts";
 import { landingCopy } from "@/lib/site-copy.ts";
 
@@ -12,11 +13,12 @@ export function LandingPipelineSection() {
       <h2 id="pipeline-heading" className="font-[family-name:var(--font-display)] text-2xl font-semibold md:text-3xl">
         {landingCopy.pipelineTitle}
       </h2>
-      <div className="grid gap-4 md:grid-cols-2">
+      <MotionStagger className="grid gap-4 md:grid-cols-2">
         {landingCopy.pipelineSteps.map((step, index) => {
           const Icon = STEP_ICONS[index] ?? CheckCircle2;
           return (
-            <Card key={step.title} className={LANDING_CARD_INTERACTION}>
+            <MotionStaggerItem key={step.title}>
+              <Card className={LANDING_CARD_INTERACTION}>
               <CardHeader className="flex flex-row items-start gap-3 space-y-0">
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-primary">
                   <Icon />
@@ -27,9 +29,10 @@ export function LandingPipelineSection() {
                 </div>
               </CardHeader>
             </Card>
+            </MotionStaggerItem>
           );
         })}
-      </div>
+      </MotionStagger>
     </LandingReveal>
   );
 }

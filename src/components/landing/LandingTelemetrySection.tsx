@@ -2,10 +2,13 @@ import { useCallback, useState } from "react";
 import { AlertTriangle, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
-import { Progress } from "@/components/ui/progress.tsx";
 import { LandingReveal } from "@/components/landing/LandingReveal.tsx";
 import { LandingSectionHeader } from "@/components/landing/LandingSectionHeader.tsx";
 import { LANDING_CARD_INTERACTION } from "@/components/landing/landing-motion.ts";
+import {
+  AnimatedScoreBar,
+  LandingSegmentedControl,
+} from "@/components/prosume-motion-ui.tsx";
 import { useAnimatedNumber } from "@/components/landing/useAnimatedNumber.ts";
 import { useInViewOnce } from "@/components/landing/useInViewOnce.ts";
 import { landingCopy } from "@/lib/site-copy.ts";
@@ -15,6 +18,8 @@ import { cn } from "@/lib/utils.ts";
 const telemetryResumePreview = sampleResumePreviewLines();
 
 const SAMPLE_SCORE = 82;
+
+type TelemetryPresetId = (typeof landingCopy.telemetryPresets)[number]["id"];
 
 function ScoreRing({ value, active }: { value: number; active: boolean }) {
   const animated = useAnimatedNumber(value, active, 1000);
@@ -53,16 +58,38 @@ function DimensionBar({
   hint,
   warn,
   active,
+  selected,
+  onSelect,
 }: {
   label: string;
   value: number;
   hint: string;
   warn?: boolean;
   active: boolean;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const animated = useAnimatedNumber(value, active, 800);
+  const ratio = animated / 100;
+
   return (
-    <Card className={cn(LANDING_CARD_INTERACTION, "overflow-hidden")}>
+    <Card
+      className={cn(
+        LANDING_CARD_INTERACTION,
+        "overflow-hidden cursor-pointer",
+        selected ? "border-primary/45 ring-1 ring-primary/25" : undefined,
+      )}
+      data-landing-dimension-state={selected ? "selected" : "idle"}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
       <CardContent className="space-y-2 p-4">
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="font-medium">{label}</span>
@@ -71,7 +98,9 @@ function DimensionBar({
             {animated}%
           </span>
         </div>
-        <Progress value={animated} className="h-1.5" />
+        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-primary/20">
+          <AnimatedScoreBar className="h-full w-full bg-primary" ratio={ratio} />
+        </div>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
@@ -81,6 +110,12 @@ function DimensionBar({
 export function LandingTelemetrySection() {
   const { ref, visible } = useInViewOnce<HTMLElement>();
   const [copied, setCopied] = useState(false);
+  const [presetId, setPresetId] = useState<TelemetryPresetId>("balanced");
+  const [selectedDimension, setSelectedDimension] = useState(0);
+
+  const preset =
+    landingCopy.telemetryPresets.find((item) => item.id === presetId) ?? landingCopy.telemetryPresets[0];
+  const presetOptions = landingCopy.telemetryPresets.map((item) => ({ id: item.id, label: item.label }));
 
   const copySuggestion = useCallback(async () => {
     try {
@@ -104,16 +139,36 @@ export function LandingTelemetrySection() {
         <div className="space-y-4">
           <Card className={LANDING_CARD_INTERACTION}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">{landingCopy.telemetryScoreLabel}</CardTitle>
-              <p className="text-xs text-muted-foreground">{landingCopy.telemetryScoreHint}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">{landingCopy.telemetryScoreLabel}</CardTitle>
+                  <p className="text-xs text-muted-foreground">{landingCopy.telemetryScoreHint}</p>
+                </div>
+                <LandingSegmentedControl
+                  aria-label="Telemetry preset"
+                  options={presetOptions}
+                  value={presetId}
+                  onChange={(next) => {
+                    setPresetId(next);
+                    setSelectedDimension(0);
+                  }}
+                  layoutGroupId="telemetry-preset"
+                />
+              </div>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-4 pb-6">
               <ScoreRing value={SAMPLE_SCORE} active={visible} />
             </CardContent>
           </Card>
           <div className="grid gap-3">
-            {landingCopy.telemetryDimensions.map((dim) => (
-              <DimensionBar key={dim.label} {...dim} active={visible} />
+            {preset.dimensions.map((dim, index) => (
+              <DimensionBar
+                key={`${presetId}-${dim.label}`}
+                {...dim}
+                active={visible}
+                selected={selectedDimension === index}
+                onSelect={() => setSelectedDimension(index)}
+              />
             ))}
           </div>
           <Card className={LANDING_CARD_INTERACTION}>

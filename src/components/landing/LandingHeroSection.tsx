@@ -1,18 +1,34 @@
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowRight, Bolt, FileUp } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent } from "@/components/ui/card.tsx";
-import { LandingReveal } from "@/components/landing/LandingReveal.tsx";
+import { LandingControlReadout, LandingSegmentedControl } from "@/components/prosume-motion-ui.tsx";
 import { LANDING_CARD_INTERACTION } from "@/components/landing/landing-motion.ts";
+import { revealVariants, resolveRevealTransition, usePrefersReducedMotion } from "@/lib/prosume-motion.ts";
 import { landingCopy } from "@/lib/site-copy.ts";
 import { trackClick } from "@/lib/events.ts";
 import { sitePath } from "@/lib/routes.ts";
 import { cn } from "@/lib/utils.ts";
 
+type HeroLensId = (typeof landingCopy.heroPreviewLenses)[number]["id"];
+
 export function LandingHeroSection() {
+  const reduced = usePrefersReducedMotion();
+  const [lens, setLens] = useState<HeroLensId>("general");
+
   return (
-    <LandingReveal as="section" className="relative flex flex-col items-center text-center" data-landing-section="hero">
+    <motion.section
+      className="relative flex flex-col items-center text-center"
+      data-landing-section="hero"
+      data-landing-reveal="shown"
+      variants={revealVariants}
+      initial={reduced ? false : "hidden"}
+      animate="visible"
+      transition={resolveRevealTransition(reduced)}
+    >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(232,197,114,0.16),transparent_62%)]"
         aria-hidden
@@ -40,43 +56,53 @@ export function LandingHeroSection() {
         </Button>
       </div>
 
-      <Card
-        className={cn(
-          "relative mt-10 w-full max-w-3xl text-left",
-          LANDING_CARD_INTERACTION,
-          "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-700 motion-reduce:animate-none",
-        )}
-        data-landing-section="hero-preview"
+      <motion.div
+        className="relative mt-10 w-full max-w-3xl"
+        variants={revealVariants}
+        initial={reduced ? false : "hidden"}
+        animate="visible"
+        transition={{ ...resolveRevealTransition(reduced), delay: reduced ? 0 : 0.12 }}
       >
-        <CardContent className="space-y-4 p-5 md:p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">{landingCopy.heroPreviewEyebrow}</p>
-            <div className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm" aria-hidden>
-              {landingCopy.heroPreviewLens}
+        <Card className={cn("w-full text-left", LANDING_CARD_INTERACTION)} data-landing-section="hero-preview">
+          <CardContent className="space-y-4 p-5 md:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">{landingCopy.heroPreviewEyebrow}</p>
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <LandingSegmentedControl
+                  aria-label="Preview lens"
+                  options={landingCopy.heroPreviewLenses}
+                  value={lens}
+                  onChange={setLens}
+                  layoutGroupId="hero-lens"
+                />
+                <LandingControlReadout panelKey={lens}>
+                  {landingCopy.heroPreviewLensReadouts[lens]}
+                </LandingControlReadout>
+              </div>
             </div>
-          </div>
-          <Link
-            to={sitePath("review")}
-            onClick={() => trackClick("/cta-review-hero-dropzone")}
-            className={cn(
-              "group flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-10",
-              "motion-safe:transition-[border-color,background-color] motion-safe:duration-200",
-              "hover:border-primary/45 hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-            )}
-          >
-            <FileUp className="size-8 text-primary motion-safe:transition-transform motion-safe:group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0" />
-            <p className="text-sm text-muted-foreground">
-              {landingCopy.heroPreviewDropTitle}{" "}
-              <span className="text-foreground underline-offset-4 group-hover:underline">{landingCopy.heroPreviewDropHint}</span>
-            </p>
-          </Link>
-          <p className="text-center text-xs text-muted-foreground">
-            <Link to={`${sitePath("review")}?scene=empty`} className="text-primary underline-offset-4 hover:underline" onClick={() => trackClick("/cta-review-sample")}>
-              {landingCopy.heroPreviewSample}
+            <Link
+              to={sitePath("review")}
+              onClick={() => trackClick("/cta-review-hero-dropzone")}
+              className={cn(
+                "group flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-10",
+                "motion-safe:transition-[border-color,background-color] motion-safe:duration-200",
+                "hover:border-primary/45 hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              )}
+            >
+              <FileUp className="size-8 text-primary motion-safe:transition-transform motion-safe:group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0" />
+              <p className="text-sm text-muted-foreground">
+                {landingCopy.heroPreviewDropTitle}{" "}
+                <span className="text-foreground underline-offset-4 group-hover:underline">{landingCopy.heroPreviewDropHint}</span>
+              </p>
             </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </LandingReveal>
+            <p className="text-center text-xs text-muted-foreground">
+              <Link to={`${sitePath("review")}?scene=empty`} className="text-primary underline-offset-4 hover:underline" onClick={() => trackClick("/cta-review-sample")}>
+                {landingCopy.heroPreviewSample}
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.section>
   );
 }

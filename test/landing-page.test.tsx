@@ -58,7 +58,7 @@ describe("landing page UAT", () => {
   it("applies reduced-motion fallbacks for landing scroll reveal", () => {
     const css = readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
     expect(css).toContain("prefers-reduced-motion: reduce");
-    expect(css).toContain(".landing-reveal--visible");
+    expect(css).toContain('[data-landing-reveal="shown"]');
   });
 });
 

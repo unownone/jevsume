@@ -781,15 +781,12 @@ textarea {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .landing-reveal {
+  .landing-reveal[data-landing-reveal="pending"] {
     opacity: 0;
     transform: translateY(14px);
-    transition:
-      opacity 620ms ease,
-      transform 620ms ease;
   }
 
-  .landing-reveal--visible {
+  .landing-reveal[data-landing-reveal="shown"] {
     opacity: 1;
     transform: translateY(0);
   }

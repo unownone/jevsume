@@ -165,7 +165,7 @@ describe("UAT: reduced motion styling", () => {
 
   it("includes prefers-reduced-motion rules for landing scroll reveal", () => {
     const css = readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
-    expect(css).toContain(".landing-reveal--visible");
+    expect(css).toContain('[data-landing-reveal="shown"]');
     expect(css).toContain("prefers-reduced-motion: reduce");
   });
 });
