@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.worker.tsbuildinfo",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.mcp.tsbuildinfo",
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "ESNext",
@@ -14,8 +14,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["./worker-configuration.d.ts"]
+    "types": ["node"]
   },
-  "include": ["worker", "packages/jev", "test", "shared", "mcp"],
-  "exclude": ["mcp/cli.ts", "mcp/stdio.ts", "test/mcp-cli.test.ts", "test/mcp-skill.test.ts"]
+  "include": ["mcp/cli.ts", "mcp/stdio.ts", "test/mcp-cli.test.ts", "test/mcp-skill.test.ts"]
 }

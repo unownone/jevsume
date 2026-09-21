@@ -1,5 +1,5 @@
 import { trackClick } from "../lib/events.ts";
-import { GITHUB_PROFILE_URL, GITHUB_REPO_URL, SPONSOR_URL } from "../lib/site-links.ts";
+import { GITHUB_PROFILE_URL, GITHUB_REPO_URL, MCP_PATH, SPONSOR_URL } from "../lib/site-links.ts";
 
 export function SiteFooter() {
   return (
@@ -24,6 +24,12 @@ export function SiteFooter() {
         >
           <GitHubMark />
           Source
+        </a>
+        <a
+          href={MCP_PATH}
+          onClick={() => trackClick("/mcp")}
+        >
+          MCP
         </a>
         <a
           href={SPONSOR_URL}

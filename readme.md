@@ -9,6 +9,37 @@ Two modes:
 
 Jev does not generate prose. Scores, verdicts, and probabilities come from System One; the Worker turns them into UI copy.
 
+## MCP + Agent Skill
+
+Any MCP client can run the same review without the studio UI.
+
+- **Hosted (no auth):** Streamable HTTP at `/mcp`. Reviews share the platform IP rate limit with `POST /api/reviews`. OAuth can wrap this later.
+- **Local npx (your TypeSafe key):** `npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY`
+- **Skill:** [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md) — proctor a resume, pick a baked-in job lens by id, rewrite, re-review.
+
+Tools stay small: `list_job_lenses`, `get_job_lens`, `suggest_job_lens`, `review_resume`. Pass `resumeText` plus optional `jobLensId` or `jobText`. Design: [`docs/superpowers/specs/2026-09-21-jevsume-mcp-skill-design.md`](docs/superpowers/specs/2026-09-21-jevsume-mcp-skill-design.md).
+
+```json
+{
+  "mcpServers": {
+    "jevsume": {
+      "url": "https://<your-jevsume-host>/mcp"
+    }
+  }
+}
+```
+
+```json
+{
+  "mcpServers": {
+    "jevsume": {
+      "command": "npx",
+      "args": ["-y", "github:unownone/jevsume", "--api-key", "<TYPESAFE_API_KEY>"]
+    }
+  }
+}
+```
+
 ## Stack
 
 - React + Vite SPA via [`@cloudflare/vite-plugin`](https://developers.cloudflare.com/workers/vite-plugin/)
@@ -50,7 +81,7 @@ npx wrangler deploy
 
 Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` because `database_id` is omitted. Apply migrations once after the first successful deploy.
 
-`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), a KV binding `VISITORS` for the visitor counter, and an Analytics Engine dataset `website_events` (`ANALYTICS`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
+`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*", "/mcp"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), a KV binding `VISITORS` for the visitor counter, and an Analytics Engine dataset `website_events` (`ANALYTICS`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
 
 Website events are fire-and-forget `writeDataPoint()` calls. Each point is `blobs: [event_type, page, country]`, `doubles: [1]`, `indexes: [event_id]`. The Worker records a `pageview` for every `/api/*` request and accepts client events at `POST /api/events` (`pageview` on load, `click` on review / upload / demo / persona). Query with the Analytics Engine SQL API against `website_events`.
 
