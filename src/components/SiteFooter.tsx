@@ -1,10 +1,16 @@
 import { trackClick } from "../lib/events.ts";
-import { GITHUB_PROFILE_URL, GITHUB_REPO_URL, MCP_PATH, SPONSOR_URL } from "../lib/site-links.ts";
+import {
+  AGENTS_PATH,
+  GITHUB_PROFILE_URL,
+  GITHUB_REPO_URL,
+  MCP_PATH,
+  SPONSOR_URL,
+} from "../lib/site-links.ts";
 
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
-      <p className="site-footer-credit">
+    <footer className="site-footer border-t border-border/60 bg-background/80 px-4 py-6 md:px-6">
+      <p className="site-footer-credit text-sm text-muted-foreground">
         Made by{" "}
         <a
           href={GITHUB_PROFILE_URL}
@@ -12,10 +18,12 @@ export function SiteFooter() {
           rel="noreferrer"
           onClick={() => trackClick("/github-profile")}
         >
-          Imon
+          UnownOne
         </a>
+        {" · "}
+        Pro-sume™ {new Date().getFullYear()}
       </p>
-      <nav className="site-footer-links" aria-label="Project">
+      <nav className="site-footer-links flex flex-wrap gap-3 text-sm" aria-label="Project">
         <a
           href={GITHUB_REPO_URL}
           target="_blank"
@@ -23,13 +31,17 @@ export function SiteFooter() {
           onClick={() => trackClick("/github")}
         >
           <GitHubMark />
-          Source
+          Source (jevsume)
+        </a>
+        <a href={AGENTS_PATH} onClick={() => trackClick("/agents")}>
+          MCP setup
         </a>
         <a
           href={MCP_PATH}
-          onClick={() => trackClick("/mcp")}
+          title="Hosted MCP HTTP endpoint"
+          onClick={() => trackClick("/mcp-endpoint")}
         >
-          MCP
+          Hosted {MCP_PATH}
         </a>
         <a
           href={SPONSOR_URL}
@@ -39,7 +51,7 @@ export function SiteFooter() {
           onClick={() => trackClick("/sponsor")}
         >
           <CoffeeMark />
-          Buy me a coffee
+          Sponsor
         </a>
       </nav>
     </footer>

@@ -41,7 +41,7 @@ export function DropGate({
       >
         <PdfGlyph />
         <h1>Drop a resume PDF</h1>
-        <p>The page stays a page. Jev reads it underneath, then marks the regions that need work.</p>
+        <p>Jev extracts text like a parser, scores sections, and pins notes to regions you can open.</p>
         <div className="demo-preset">
           <PresetSelect
             id="demo-resume-preset"
@@ -71,7 +71,7 @@ export function DropGate({
       <article className="drop-plate is-soon bounce-in delay" aria-disabled="true">
         <LinkedInGlyph />
         <h2>LinkedIn PDF</h2>
-        <p>Export from LinkedIn, drop it here. Same canvas, same marks. Not wired yet.</p>
+        <p>Export from LinkedIn when this lane ships. Same studio flow—still being wired.</p>
         <span className="soon">Coming soon</span>
       </article>
       {jobSlot}

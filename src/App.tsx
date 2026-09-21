@@ -69,7 +69,7 @@ function activeNotices(notices: RateLimitNotices, nowMs: number): RateLimitNotic
   return items;
 }
 
-export default function App() {
+export default function App({ embedded = false }: { embedded?: boolean }) {
   const [resumeText, setResumeText] = useState(DEMO_RESUME);
   const [source, setSource] = useState("paste");
   const [hot, setHot] = useState(false);
@@ -228,6 +228,7 @@ export default function App() {
   return (
     <>
       <div className="app">
+      {!embedded ? (
       <header className="topbar">
         <div className="brand">
           <img
@@ -248,9 +249,11 @@ export default function App() {
           <div className="badge muted">counting visitors…</div>
         )}
       </header>
+      ) : null}
 
       <section className="hero">
         <h1>
+          {!embedded ? (
           <img
             className="hero-mark"
             src="/jev-mark.svg"
@@ -259,11 +262,11 @@ export default function App() {
             alt=""
             decoding="async"
           />
-          <span>Review resume using Jev</span>
+          ) : null}
+          <span>Review with clear Jev notes</span>
         </h1>
         <p>
-          Drop in a resume, choose who it’s for, and read it with Jev. Notes sit on the lines they
-          belong to.
+          Drop a resume, choose a job lens, and read scored findings on the lines they belong to.
         </p>
       </section>
 
@@ -424,7 +427,7 @@ export default function App() {
         </section>
       </div>
       </div>
-      <SiteFooter />
+      {embedded ? null : <SiteFooter />}
     </>
   );
 }

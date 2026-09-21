@@ -485,10 +485,7 @@ export default function StudioApp() {
       style={{ "--zoom": String(zoom) } as CSSProperties}
     >
       <header className="studio-chrome">
-        <a className="brand" href="/">
-          <img className="brand-mark" src="/jev-mark.svg" width={32} height={32} alt="" />
-          jev<span>sume</span>
-        </a>
+        <div className="chrome-start" aria-hidden />
         <div className="chrome-center">
           <button
             type="button"
