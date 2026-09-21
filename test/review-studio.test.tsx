@@ -14,6 +14,6 @@ describe("review studio", () => {
   it("empty scene", async () => {
     renderReview("empty");
     await waitFor(() => expect(screen.getByRole("heading", { name: /Drop a resume PDF/i })).toBeInTheDocument());
-    expect(document.querySelector(".studio")?.getAttribute("data-studio-scene")).toBe("empty");
+    await waitFor(() => expect(document.querySelector(".studio")).toHaveAttribute("data-studio-scene", "empty"));
   });
 });
