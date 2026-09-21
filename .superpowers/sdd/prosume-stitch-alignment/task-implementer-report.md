@@ -19,22 +19,40 @@ Branch `cursor/prosume-stitch-alignment-47f5` (PR #17) — Stitch IA, amber-carb
 
 Studio PDF multiply blend, landing ivory paper via `sample-resume-preview.ts`, `test/sample-resume-paper.test.tsx`.
 
-## Verification (2026-09-21)
+## Final verification (2026-09-21, commit `414630e`)
+
+**Git:** `cursor/prosume-stitch-alignment-47f5` — local `414630e4238ea9b17a2e1dba2b7714a9f752afe4` matches `origin/cursor/prosume-stitch-alignment-47f5`. Worktree clean (untracked: `.playwright-mcp/`, `landing-motion-smoke.png` only).
 
 ```text
-pnpm typecheck — exit 0
-pnpm test — 40 files, 211 tests — exit 0
-pnpm uat — 12 tests — exit 0
-pnpm exec vite build — exit 0
+pnpm typecheck          → exit 0
+pnpm test               → exit 0 (40 files, 211 tests)
+pnpm uat                → exit 0 (12 tests)
+pnpm build              → exit 0 (`tsc -b && vite build`; jevsume + client bundles)
 ```
 
-Browser smoke: `/`, `/review?scene=empty`, `/agents` via preview + Playwright (manual spot-check in agent run when preview available).
+**Preview (supported):** `pnpm preview --host 0.0.0.0 --port 4173` (after `pnpm build`; restart preview when dist hashes change).
+
+**Playwright smoke** (`http://127.0.0.1:4173`, `domcontentloaded` + 800ms settle):
+
+| Viewport | Route | HTTP | Console/page errors |
+| --- | --- | --- | --- |
+| 1280×720 | `/` | 200 | none |
+| 1280×720 | `/review?scene=empty` | 200 | none |
+| 1280×720 | `/review?scene=reviewed` | 200 | none |
+| 1280×720 | `/agents` | 200 | none |
+| 390×844 | `/` | 200 | none |
+| 390×844 | `/review?scene=empty` | 200 | none |
+| 390×844 | `/review?scene=reviewed` | 200 | none |
+| 390×844 | `/agents` | 200 | none |
+
+No React error boundary, missing hero/agents/studio copy, or layout-blocking console errors observed on these checks.
 
 ## Remaining concerns
 
-- Full monorepo `pnpm build` (`tsc -b` all refs) may still surface pre-existing worker/CSS side-effect issues; app build via `vite build` is green
+- Restart `pnpm preview` after each production build; stale preview sessions can 500 on old hashed assets
 - Superdesign pixel diff without auth
 - Classic review chunk ~514 kB; `prosume-motion-ui` ~45 kB gzip on landing/studio routes
+- Vite chunk-size warning (>500 kB) on `ClassicReviewPage` (informational)
 
 ## Claims policy
 
