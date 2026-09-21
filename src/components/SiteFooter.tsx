@@ -31,7 +31,7 @@ export function SiteFooter() {
           onClick={() => trackClick("/github")}
         >
           <GitHubMark />
-          Source (jevsume)
+          GitHub
         </a>
         <a href={AGENTS_PATH} onClick={() => trackClick("/agents")}>
           MCP setup

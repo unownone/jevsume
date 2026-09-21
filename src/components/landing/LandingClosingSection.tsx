@@ -27,7 +27,7 @@ export function LandingClosingSection() {
       <p className="mt-6 text-xs text-muted-foreground">
         Source on{" "}
         <a className="text-primary underline-offset-4 hover:underline" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
-          GitHub (jevsume)
+          GitHub
         </a>
         . Pro-sume™ {new Date().getFullYear()} · Made by UnownOne
       </p>
