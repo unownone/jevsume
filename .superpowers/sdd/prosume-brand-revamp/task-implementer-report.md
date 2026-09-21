@@ -10,7 +10,7 @@ Run from repo root on `cursor/prosume-rebrand-47f5`:
 
 ```bash
 pnpm typecheck   # exit 0
-pnpm test        # 33 files, 177 tests, exit 0 (excludes test/uat/**)
+pnpm test        # 32 files, 176 tests, exit 0 (excludes test/uat/**)
 pnpm uat         # 1 file, 9 tests, exit 0 — jsdom MemoryRouter harness (no Playwright/browser run)
 pnpm build       # exit 0
 ```
