@@ -23,5 +23,23 @@
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
   "include": ["test/**/*.test.ts", "test/**/*.test.tsx", "test/setup-dom.ts", "src/vite-env.d.ts"],
-  "exclude": ["test/uat/**"]
+  "exclude": [
+    "test/uat/**",
+    "test/api.test.ts",
+    "test/analytics.test.ts",
+    "test/group.test.ts",
+    "test/rate-limit.test.ts",
+    "test/resume-presets.test.ts",
+    "test/mcp-http.test.ts",
+    "test/mcp-protocol.test.ts",
+    "test/jev.test.ts",
+    "test/job-target.test.ts",
+    "test/cost.test.ts",
+    "test/proctor.test.ts",
+    "test/format.test.ts",
+    "test/mcp-compact.test.ts",
+    "test/mcp-catalog.test.ts",
+    "test/mcp-cli.test.ts",
+    "test/mcp-skill.test.ts"
+  ]
 }

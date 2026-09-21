@@ -26,31 +26,31 @@ Branch `cursor/prosume-stitch-alignment-47f5` (PR #17) — **Review studio conso
 
 ## Verification (2026-09-21)
 
+**Type boundary fix (commit after `5f15de1`):** `tsconfig.worker.json` incorrectly set `"types": ["./worker-configuration.d.ts"]` (TypeScript `types` only accepts `@types` package names, so `D1Database` / `KVNamespace` never loaded). Fixed by including `worker-configuration.d.ts` in `include` and dropping that `types` entry. `tsconfig.vitest.json` no longer typechecks worker-integration `*.test.ts` files (those stay under the worker project with Cloudflare bindings); frontend-only tests (`review-studio-*`, `motion-presets`, etc.) remain on vitest with `@/*` + Node.
+
 ```text
-pnpm typecheck          → exit 0 (app + vitest projects; worker refs may need Cloudflare types in some envs)
+pnpm typecheck          → exit 0
 pnpm test               → exit 0 (43 files, 221 tests)
 pnpm uat                → exit 0 (12 tests)
-pnpm exec vite build    → exit 0 (client bundle)
+pnpm build              → exit 0 (`tsc -b && vite build`)
 ```
 
-**Preview:** `pnpm preview --host 0.0.0.0 --port 4173` after `vite build`. Kill stale preview tmux sessions before smoke (stale hashes → 500 on `/assets/*`).
+**Playwright smoke** (`http://127.0.0.1:4173`, post-`pnpm build` preview):
 
-**Playwright smoke** (`http://127.0.0.1:4173`, post-restart preview):
+| Check | Result |
+| --- | --- |
+| 1024×560 `/review?scene=empty` | `data-studio-scene=empty`, drop heading present |
+| 1024×560 `/review?scene=reviewed` | `viewport=wide`, score panel + diagnostics rail |
+| 390×844 `/review?scene=reviewed` | `viewport=narrow`, diagnostics dock control, no horizontal overflow |
+| Console | 0 errors on smoke pass |
 
-| Viewport | Route | Checks |
-| --- | --- | --- |
-| 1024×560 | `/review?scene=empty` | Single studio chrome, drop gate, no duplicate marketing header |
-| 1024×560 | `/review?scene=loaded` | Paper + dock |
-| 1024×560 | `/review?scene=reviewed` | Score rail + diagnostics rail + dock |
-| 390×844 | `/review?scene=reviewed` | `data-studio-viewport=narrow`, score chip, diagnostics toggle, no horizontal overflow |
-
-Screenshots (runtime captures, not pixel baselines): `.superpowers/sdd/prosume-stitch-alignment/artifacts/review-*-{desktop-1024,mobile-390}.png`
+Screenshots (prior consolidation pass): `.superpowers/sdd/prosume-stitch-alignment/artifacts/review-*-{desktop-1024,mobile-390}.png`
 
 **Stitch reference comparison (advisory):** Supplied Stitch PNGs differ in data (mock scores/copy) and layout chrome (marketing nav). Measured visually: aligned on charcoal/amber/ivory language, three-region desktop IA, compact mobile header + bottom diagnostics pattern. Not claimed pixel-perfect.
 
 ## Remaining concerns
 
-- `pnpm build` (`tsc -b` all project refs) may fail in environments missing generated Cloudflare worker types; client `vite build` succeeds
+- Restart `pnpm preview` after each production build; stale preview sessions can 500 on old hashed assets
 - `/classic` legacy route retained for `?view=classic` adapter only — not linked from studio shell
 - Classic review chunk ~514 kB (informational Vite warning)
 - Superdesign CLI unauthenticated — Stitch PNGs used as visual truth
