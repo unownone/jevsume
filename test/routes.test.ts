@@ -11,6 +11,7 @@ describe("site routes", () => {
 
   it("falls back to landing for unknown paths", () => {
     expect(resolveSiteRoute("/nope")).toBe("landing");
+    expect(resolveSiteRoute("/mcp")).toBe("landing");
   });
 
   it("matches review and agents for navigation helpers", () => {

@@ -19,6 +19,7 @@ import { decorateStudioScore, fillWaitingJudgeLines, linesFromGlyphs, reviewFrom
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { pdfBufferFromResumeText } from "./resume-pdf.ts";
 import { SiteFooter } from "../components/SiteFooter.tsx";
+import { StudioSiteNav } from "../components/prosume/LegacyViewRedirect.tsx";
 import { DropGate } from "./DropGate.tsx";
 import { JobComposer } from "./JobComposer.tsx";
 import { Leader } from "./Leader.tsx";
@@ -485,7 +486,9 @@ export default function StudioApp() {
       style={{ "--zoom": String(zoom) } as CSSProperties}
     >
       <header className="studio-chrome">
-        <div className="chrome-start" aria-hidden />
+        <div className="chrome-start">
+          <StudioSiteNav className="studio-site-nav" />
+        </div>
         <div className="chrome-center">
           <button
             type="button"
