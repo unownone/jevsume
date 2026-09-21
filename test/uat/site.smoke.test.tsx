@@ -90,6 +90,15 @@ describe("UAT: route loading and navigation", () => {
     expect(review).toBeTruthy();
     const agents = screen.getAllByRole("link", { name: /mcp/i }).find((a) => a.getAttribute("href") === "/agents");
     expect(agents).toBeTruthy();
+    });
+
+  it("landing exposes Stitch section markers and integration workflows", async () => {
+    renderSiteAt(["/"]);
+    await waitFor(() => {
+      expect(document.querySelector('[data-landing-section="telemetry"]')).toBeTruthy();
+      expect(document.querySelector('[data-landing-section="integration"]')).toBeTruthy();
+      expect(screen.getByText(/INTEGRATION_WORKFLOWS/i)).toBeInTheDocument();
+    });
   });
 });
 
@@ -148,6 +157,12 @@ describe("UAT: review studio empty scene interactions", () => {
 describe("UAT: reduced motion styling", () => {
   it("includes prefers-reduced-motion rules for studio animations", () => {
     const css = readFileSync(path.join(process.cwd(), "src/studio/semantic-bridge.css"), "utf8");
+    expect(css).toContain("prefers-reduced-motion: reduce");
+    });
+
+  it("includes prefers-reduced-motion rules for landing scroll reveal", () => {
+    const css = readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
+    expect(css).toContain(".landing-reveal--visible");
     expect(css).toContain("prefers-reduced-motion: reduce");
   });
 });
