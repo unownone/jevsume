@@ -12,5 +12,6 @@ describe("SiteApp code splitting", () => {
     expect(source).toContain("SiteAppRoutes");
     expect(source).toContain('lazy(() => import("@/pages/ClassicReviewPage.tsx")');
     expect(source).toContain("<Suspense");
+    expect(source).toContain("SiteRouteLoadingShell");
   });
 });
