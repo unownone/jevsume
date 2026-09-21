@@ -12,18 +12,23 @@ type DiagnosticsRailProps = {
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   detailSlot?: ReactNode;
+  hideIntro?: boolean;
 };
 
-export function DiagnosticsRail({ findings, onSelect, detailSlot }: DiagnosticsRailProps) {
+export function DiagnosticsRail({ findings, onSelect, detailSlot, hideIntro }: DiagnosticsRailProps) {
   const jevFindings = findings.filter((item) => item.origin === "jev");
   return (
     <aside className="diagnostics-rail" aria-label={studioCopy.diagnosticsTitle} data-studio-panel="diagnostics">
-      {detailSlot ? <div className="diagnostics-detail">{detailSlot}</div> : (
+      {detailSlot ? (
+        <div className="diagnostics-detail">{detailSlot}</div>
+      ) : (
         <>
-          <header className="diagnostics-head">
-            <h2>{studioCopy.diagnosticsTitle}</h2>
-            <p>{studioCopy.diagnosticsHint}</p>
-          </header>
+          {hideIntro ? null : (
+            <header className="diagnostics-head">
+              <h2>{studioCopy.diagnosticsTitle}</h2>
+              <p>{studioCopy.diagnosticsHint}</p>
+            </header>
+          )}
           <ol className="diagnostics-list">
             {jevFindings.map((finding) => (
               <li key={finding.id}>

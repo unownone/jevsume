@@ -6,7 +6,7 @@ type OverlayNoteProps = {
   finding: OverlayFinding;
   messages: ChatMessage[];
   draft: string;
-  compact: boolean;
+  variant: "rail" | "sheet";
   total: number;
   onDraft: (value: string) => void;
   onSend: () => void;
@@ -20,7 +20,7 @@ export function OverlayNote({
   finding,
   messages,
   draft,
-  compact,
+  variant,
   total,
   onDraft,
   onSend,
@@ -37,7 +37,7 @@ export function OverlayNote({
 
   return (
     <aside
-      className={`overlay-note ${finding.severity}${compact ? " is-sheet" : ""}`}
+      className={`overlay-note ${finding.severity}${variant === "sheet" ? " is-sheet" : ""}`}
       aria-labelledby={`note-${finding.id}`}
     >
       <header>
