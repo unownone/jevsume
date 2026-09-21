@@ -25,6 +25,11 @@ function renderAgents() {
   );
 }
 
+function assertFollowsInDocument(before: Element, after: Element) {
+  const position = before.compareDocumentPosition(after);
+  expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
 describe("agents page UAT", () => {
   it("documents hosted and local MCP modes in primary tabs", async () => {
     const user = userEvent.setup();
@@ -98,6 +103,37 @@ describe("agents page UAT", () => {
     const panel = screen.getByRole("tabpanel", { name: "Cursor" });
     expect(panel.className).toMatch(/motion-reduce:animate-none/);
     expect(panel.className).toMatch(/motion-safe:animate-in/);
+  });
+
+  it("keeps connection tab list tall enough so panels follow option cards in flow", () => {
+    renderAgents();
+    const connectionList = screen.getByRole("tablist", { name: /MCP connection mode/i });
+    expect(connectionList.className).toMatch(/group-data-\[orientation=horizontal\]\/tabs:!h-auto/);
+    expect(connectionList.className).toMatch(/overflow-visible/);
+
+    const hostedDetail = screen.getByText("Hosted MCP (all URL-based clients)");
+    assertFollowsInDocument(connectionList, hostedDetail);
+
+    const hostedPanel = screen.getByRole("tabpanel", { name: /Option 01 · Hosted endpoint/i });
+    expect(hostedPanel).toBeVisible();
+    expect(hostedPanel).not.toHaveAttribute("hidden");
+  });
+
+  it("preserves connection and client tab order at a 360px viewport", () => {
+    Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 360 });
+    window.dispatchEvent(new Event("resize"));
+    renderAgents();
+
+    const connectionList = screen.getByRole("tablist", { name: /MCP connection mode/i });
+    const hostedTab = screen.getByRole("tab", { name: /Option 01 · Hosted endpoint/i });
+    const hostedPanel = screen.getByRole("tabpanel", { name: /Option 01 · Hosted endpoint/i });
+
+    assertFollowsInDocument(connectionList, hostedTab);
+    assertFollowsInDocument(hostedTab, hostedPanel);
+
+    const clientList = screen.getByRole("tablist", { name: /MCP client host/i });
+    expect(clientList.className).toMatch(/group-data-\[orientation=horizontal\]\/tabs:!h-auto/);
+    expect(screen.getByRole("tab", { name: "Cursor" })).toBeVisible();
   });
 
   it("shows clipboard feedback when copying hosted JSON", async () => {

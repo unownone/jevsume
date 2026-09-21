@@ -35,7 +35,16 @@ const CLIENT_TABS: { id: McpClientId; label: string; configPath: string }[] = [
 ];
 
 const TAB_PANEL_MOTION =
-  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none motion-reduce:transition-none";
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none motion-reduce:transition-none";
+
+/** Horizontal TabsList defaults to h-9; tall option cards must expand the list box. */
+const CONNECTION_TAB_LIST_CLASS =
+  "group-data-[orientation=horizontal]/tabs:!h-auto !h-auto min-h-0 w-full grid grid-cols-1 gap-3 overflow-visible bg-transparent p-0 md:grid-cols-2";
+
+const CLIENT_TAB_LIST_CLASS =
+  "group-data-[orientation=horizontal]/tabs:!h-auto !h-auto min-h-0 flex w-full flex-wrap justify-start gap-1 overflow-visible bg-transparent p-0";
+
+const TAB_PANEL_LAYOUT = "mt-0 w-full min-w-0 flex-none basis-auto";
 
 export default function AgentsPage() {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://your-worker.example";
@@ -119,17 +128,13 @@ export default function AgentsPage() {
                 setConnectionMode(value);
               }
             }}
-            className="gap-6"
+            className="flex w-full flex-col gap-6"
           >
-            <TabsList
-              variant="line"
-              className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 md:grid-cols-2"
-              aria-label="MCP connection mode"
-            >
+            <TabsList variant="line" className={CONNECTION_TAB_LIST_CLASS} aria-label="MCP connection mode">
               <TabsTrigger
                 value="hosted"
                 className={cn(
-                  "h-auto min-h-[7.5rem] flex-col items-start gap-2 rounded-xl border border-border bg-card/60 px-4 py-4 text-left shadow-none",
+                  "h-auto min-h-[7.5rem] w-full flex-none flex-col items-start gap-2 whitespace-normal rounded-xl border border-border bg-card/60 px-4 py-4 text-left shadow-none",
                   "data-[state=active]:border-primary data-[state=active]:bg-card data-[state=active]:text-foreground",
                   "after:hidden motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-200",
                   "data-[state=active]:motion-safe:shadow-[0_0_0_1px_var(--primary)]",
@@ -149,7 +154,7 @@ export default function AgentsPage() {
               <TabsTrigger
                 value="local"
                 className={cn(
-                  "h-auto min-h-[7.5rem] flex-col items-start gap-2 rounded-xl border border-border bg-card/60 px-4 py-4 text-left shadow-none",
+                  "h-auto min-h-[7.5rem] w-full flex-none flex-col items-start gap-2 whitespace-normal rounded-xl border border-border bg-card/60 px-4 py-4 text-left shadow-none",
                   "data-[state=active]:border-primary data-[state=active]:bg-card data-[state=active]:text-foreground",
                   "after:hidden motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-200",
                   "data-[state=active]:motion-safe:shadow-[0_0_0_1px_var(--primary)]",
@@ -168,8 +173,9 @@ export default function AgentsPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="hosted" className={TAB_PANEL_MOTION}>
-              <Card>
+            <div className="w-full min-w-0">
+              <TabsContent value="hosted" className={cn(TAB_PANEL_LAYOUT, TAB_PANEL_MOTION)}>
+                <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Hosted MCP (all URL-based clients)</CardTitle>
                   <CardDescription>
@@ -179,7 +185,7 @@ export default function AgentsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <code className="flex-1 truncate rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+                    <code className="min-w-0 flex-1 break-all rounded-md border border-border bg-muted/50 px-3 py-2 text-sm sm:truncate">
                       {hostedUrl}
                     </code>
                     <Button type="button" variant="secondary" onClick={() => void copyHostedUrl()}>
@@ -189,11 +195,11 @@ export default function AgentsPage() {
                   </div>
                   <McpSnippetBlock snippet={hostedSnippet} copyLabel="Copy JSON" />
                 </CardContent>
-              </Card>
-            </TabsContent>
+                </Card>
+              </TabsContent>
 
-            <TabsContent value="local" className={TAB_PANEL_MOTION}>
-              <Card>
+              <TabsContent value="local" className={cn(TAB_PANEL_LAYOUT, TAB_PANEL_MOTION)}>
+                <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">{agentsCopy.localTitle}</CardTitle>
                   <CardDescription>{agentsCopy.localBody}</CardDescription>
@@ -201,8 +207,9 @@ export default function AgentsPage() {
                 <CardContent>
                   <McpSnippetBlock snippet={localCommandSnippet} copyLabel="Copy command" />
                 </CardContent>
-              </Card>
-            </TabsContent>
+                </Card>
+              </TabsContent>
+            </div>
           </Tabs>
         </section>
 
@@ -228,13 +235,9 @@ export default function AgentsPage() {
               <Tabs
                 value={clientTab}
                 onValueChange={(value) => setClientTab(value as McpClientId)}
-                className="gap-4"
+                className="flex w-full flex-col gap-4"
               >
-                <TabsList
-                  variant="line"
-                  className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0"
-                  aria-label="MCP client host"
-                >
+                <TabsList variant="line" className={CLIENT_TAB_LIST_CLASS} aria-label="MCP client host">
                   {CLIENT_TABS.map((tab) => (
                     <TabsTrigger
                       key={tab.id}
@@ -253,7 +256,11 @@ export default function AgentsPage() {
                   <TabsContent
                     key={tab.id}
                     value={tab.id}
-                    className={cn("mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]", TAB_PANEL_MOTION)}
+                    className={cn(
+                      TAB_PANEL_LAYOUT,
+                      "mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]",
+                      TAB_PANEL_MOTION,
+                    )}
                   >
                     <div>
                       <p className="mb-2 text-xs text-muted-foreground">
