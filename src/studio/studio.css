@@ -1,7 +1,4 @@
 .studio {
-  --paper: #f7f4ec;
-  --paper-ink: #16141c;
-  --paper-mute: #5c564c;
   --desk: #07070d;
   --paper-base: min(42rem, calc(100vw - 2.75rem), calc((100dvh - 11.25rem) * 8.5 / 11));
   --site-footer-offset: 3.15rem;
@@ -840,6 +837,8 @@
   display: block;
   width: 100%;
   height: 100%;
+  background: transparent;
+  mix-blend-mode: multiply;
 }
 
 .page-overlay {

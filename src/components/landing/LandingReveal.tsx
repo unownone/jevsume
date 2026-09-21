@@ -1,23 +1,19 @@
-import type { ReactNode } from "react";
-import { MotionReveal } from "@/components/prosume-motion-ui.tsx";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { cn } from "@/lib/utils.ts";
+import { LANDING_REVEAL_BASE, landingRevealVisible } from "@/components/landing/landing-motion.ts";
+import { useInViewOnce } from "@/components/landing/useInViewOnce.ts";
 
-export function LandingReveal({
-  children,
-  className,
-  as = "div",
-  viewportAmount,
-  ...rest
-}: {
+type LandingRevealProps = {
   children: ReactNode;
   className?: string;
   as?: "div" | "section";
-  viewportAmount?: number;
-  "data-landing-section"?: string;
-  "aria-labelledby"?: string;
-}) {
+} & Omit<ComponentPropsWithoutRef<"section">, "className" | "children">;
+
+export function LandingReveal({ children, className, as: Tag = "div", ...rest }: LandingRevealProps) {
+  const { ref, visible } = useInViewOnce<HTMLElement>();
   return (
-    <MotionReveal as={as} className={className} landingCompat viewportAmount={viewportAmount} {...rest}>
+    <Tag ref={ref as never} className={cn(LANDING_REVEAL_BASE, landingRevealVisible(visible), className)} {...rest}>
       {children}
-    </MotionReveal>
+    </Tag>
   );
 }

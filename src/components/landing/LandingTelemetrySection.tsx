@@ -9,7 +9,10 @@ import { LANDING_CARD_INTERACTION } from "@/components/landing/landing-motion.ts
 import { useAnimatedNumber } from "@/components/landing/useAnimatedNumber.ts";
 import { useInViewOnce } from "@/components/landing/useInViewOnce.ts";
 import { landingCopy } from "@/lib/site-copy.ts";
+import { SAMPLE_RESUME_PAPER_SURFACE, sampleResumePreviewLines } from "@/lib/sample-resume-preview.ts";
 import { cn } from "@/lib/utils.ts";
+
+const telemetryResumePreview = sampleResumePreviewLines();
 
 const SAMPLE_SCORE = 82;
 
@@ -142,20 +145,14 @@ export function LandingTelemetrySection() {
               {landingCopy.telemetryPreviewBadge}
             </span>
           </CardHeader>
-          <CardContent className="space-y-4 p-5 font-mono text-[0.7rem] leading-relaxed text-muted-foreground">
-            <p className="text-foreground">JANE DOE · Staff Software Engineer</p>
-            <p>San Francisco, CA · jane@example.com</p>
-            <div className="space-y-2">
-              <p className="text-foreground">EXPERIENCE</p>
-              <p>
-                <span className="rounded-sm bg-primary/20 px-1 text-foreground motion-safe:animate-pulse motion-reduce:animate-none">
-                  Led platform reliability initiatives across teams.
-                </span>
-              </p>
-              <p>Built internal tooling for deployment safety and observability.</p>
-              <p className="rounded-sm border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[0.65rem] text-primary">
-                Suggested revision available in studio
-              </p>
+          <CardContent className="p-5">
+            <div className={SAMPLE_RESUME_PAPER_SURFACE} data-landing-resume-paper>
+              <p className="text-[color:var(--paper-ink)]">{telemetryResumePreview.name} · {telemetryResumePreview.title}</p>
+              <div className="mt-3 space-y-2">
+                <p className="text-[color:var(--paper-ink)]">EXPERIENCE</p>
+                <p><span className="rounded-sm bg-primary/20 px-1 text-[color:var(--paper-ink)] motion-safe:animate-pulse motion-reduce:animate-none">{telemetryResumePreview.highlight}</span></p>
+                <p className="rounded-sm border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[0.65rem] text-primary">{telemetryResumePreview.footer}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -22,6 +22,6 @@
     },
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["test/*.test.tsx", "test/setup-dom.ts"],
+  "include": ["test/*.test.tsx", "test/setup-dom.ts", "src/vite-env.d.ts"],
   "exclude": ["test/uat/**"]
 }

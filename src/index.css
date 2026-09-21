@@ -71,6 +71,7 @@
   --mark-risk: rgba(255, 143, 163, 0.28);
   --paper: #f7f4ec;
   --paper-ink: #16141c;
+  --paper-mute: #5c564c;
   --focus: #e8c572;
   font-family: "Instrument Sans", system-ui, sans-serif;
   background: var(--bg);

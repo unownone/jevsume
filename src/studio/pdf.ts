@@ -88,6 +88,16 @@ export async function collectGlyphs(pdf: PDFDocumentProxy): Promise<GlyphBox[]> 
 
 const inflight = new WeakMap<HTMLCanvasElement, { cancel: () => void }>();
 
+/** Let the studio `.paper` surface show through instead of pdf.js default white. */
+function canvasPaperBackground(canvas: HTMLCanvasElement): string {
+  if (typeof window === "undefined") return "transparent";
+  const host = canvas.closest(".paper");
+  if (!host) return "transparent";
+  const fill = window.getComputedStyle(host).backgroundColor;
+  if (!fill || fill == "transparent" || fill == "rgba(0, 0, 0, 0)") return "transparent";
+  return fill;
+}
+
 function isRenderCancelled(caught: unknown): boolean {
   return Boolean(
     caught &&
@@ -114,6 +124,7 @@ export async function renderPage(
   const task = page.render({
     canvas,
     viewport,
+    background: canvasPaperBackground(canvas),
   });
   inflight.set(canvas, task);
   try {
