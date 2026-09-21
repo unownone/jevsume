@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
-import { formatJevScore, scoreTone } from "../../shared/format.ts";
+import type { SectionBand } from "./PageOverlay.tsx";
 import { streamReview } from "../lib/api.ts";
 import {
   EMPTY_JOB_TARGET,
@@ -18,15 +17,10 @@ import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
 import { decorateStudioScore, fillWaitingJudgeLines, linesFromGlyphs, reviewFromGlyphs, scoreFromDocument } from "./findings.ts";
 import { boxForSpan, flattenGlyphs } from "./ledger.ts";
 import { pdfBufferFromResumeText } from "./resume-pdf.ts";
-import { SiteFooter } from "../components/SiteFooter.tsx";
-import { DropGate } from "./DropGate.tsx";
-import { JobComposer } from "./JobComposer.tsx";
-import { Leader } from "./Leader.tsx";
-import { OverlayNote } from "./OverlayNote.tsx";
-import { PdfStage } from "./PdfStage.tsx";
-import type { SectionBand } from "./PageOverlay.tsx";
-import { ScorePanel } from "./ScorePanel.tsx";
+import { ReviewStudio } from "./ReviewStudio.tsx";
+import { useStudioViewport } from "./useStudioViewport.ts";
 import "./studio.css";
+import "./semantic-bridge.css";
 import { trackClick } from "../lib/events.ts";
 import type { ChatMessage, GlyphBox, LedgerRun, OverlayFinding, PageBox, Scene, StudioScore } from "./types.ts";
 
@@ -56,7 +50,7 @@ export default function StudioApp() {
   const [jobOpen, setJobOpen] = useState(false);
   const [jobTarget, setJobTarget] = useState<JobTargetFields>(EMPTY_JOB_TARGET);
   const [demoPresetId, setDemoPresetId] = useState(DEFAULT_PRESET_ID);
-  const [compact, setCompact] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [fromRect, setFromRect] = useState<DOMRect | null>(null);
   const [toRect, setToRect] = useState<DOMRect | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -67,11 +61,12 @@ export default function StudioApp() {
   const noteRef = useRef<HTMLDivElement>(null);
   const markRef = useRef(1);
   const glyphsRef = useRef<GlyphBox[]>([]);
-  const compactRef = useRef(false);
+  const isNarrowRef = useRef(false);
   const jobTargetRef = useRef(jobTarget);
+  const { isNarrow } = useStudioViewport();
 
   glyphsRef.current = glyphs;
-  compactRef.current = compact;
+  isNarrowRef.current = isNarrow;
   jobTargetRef.current = jobTarget;
 
   const active = findings.find((finding) => finding.id === activeId) ?? null;
@@ -119,19 +114,12 @@ export default function StudioApp() {
   }, []);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 820px)");
-    const sync = () => setCompact(query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setActiveId(null);
         setDrawMode(false);
         setJobOpen(false);
+        setDiagnosticsOpen(false);
       }
       if (event.key === "ArrowRight") {
         stepFinding(1);
@@ -189,7 +177,7 @@ export default function StudioApp() {
         ]),
       ),
     );
-    setActiveId(compactRef.current ? null : (reviewed.findings[0]?.id ?? null));
+    setActiveId(isNarrowRef.current ? null : (reviewed.findings[0]?.id ?? null));
     setSelected([]);
   }, []);
 
@@ -450,14 +438,14 @@ export default function StudioApp() {
     }
     const mark = document.querySelector<HTMLElement>(`[data-mark="${activeId}"]`);
     mark?.scrollIntoView({
-      block: compact ? "center" : "center",
+      block: "center",
       inline: "nearest",
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     });
-  }, [activeId, compact]);
+  }, [activeId]);
 
   useEffect(() => {
-    if (!active?.box || compact) {
+    if (!active?.box || isNarrow) {
       setFromRect(null);
       return;
     }
@@ -469,195 +457,75 @@ export default function StudioApp() {
       return;
     }
     setFromRect(origin.getBoundingClientRect());
-  }, [active, compact, findings, zoom]);
+  }, [active, isNarrow, findings, zoom]);
 
   useLayoutEffect(() => {
     setToRect(noteRef.current?.getBoundingClientRect() ?? null);
-  }, [active, compact, fromRect]);
+  }, [active, isNarrow, fromRect]);
 
   const messages = active ? (threads[active.id] ?? []) : [];
   const targeted = hasJobTarget(jobTarget);
   const jobLabel = targeted ? jobTargetLabel(jobTarget) : "Target a job";
 
   return (
-    <div
-      className={`studio${scene === "reviewed" ? " is-reviewed" : ""}${reading ? " is-loading" : ""}${targeted ? " is-job-targeted" : ""}`}
-      style={{ "--zoom": String(zoom) } as CSSProperties}
-    >
-      <header className="studio-chrome">
-        <a className="brand" href="/">
-          <img className="brand-mark" src="/jev-mark.svg" width={32} height={32} alt="" />
-          jev<span>sume</span>
-        </a>
-        <div className="chrome-center">
-          <button
-            type="button"
-            className={`persona-chip${targeted ? " is-targeted" : ""}${jobOpen ? " is-open" : ""}`}
-            aria-expanded={jobOpen}
-            aria-controls="job-composer"
-            onClick={() => setJobOpen((open) => !open)}
-          >
-            {scene === "reviewed" && targeted ? `Rated against ${jobLabel}` : jobLabel}
-          </button>
-          {filename && data ? <span className="file-chip">{filename}</span> : null}
-        </div>
-        <div className="chrome-end">
-          {reading ? (
-            <div className="score-orb is-reading" aria-label="Reading">
-              <span />
-              <span />
-              <span />
-            </div>
-          ) : null}
-          {score ? (
-            <button
-              type="button"
-              className={`score-chip ${scoreTone(score.value)}`}
-              aria-label={`JevScore ${formatJevScore(score.value)}, ${score.noteCount} notes`}
-              onClick={() => {
-                const panel = document.querySelector(".score-panel");
-                panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-              }}
-            >
-              <div className={`score-orb ${scoreTone(score.value)}`}>{formatJevScore(score.value)}</div>
-              <span>{score.noteCount} notes</span>
-            </button>
-          ) : null}
-        </div>
-      </header>
-
-      {jobOpen ? (
-        <div className="persona-pop bounce-in" id="job-composer">
-          <JobComposer
-            value={jobTarget}
-            onChange={setJobTarget}
-            onClose={() => setJobOpen(false)}
-            variant="popover"
-            resumeText={resumeText}
-          />
-        </div>
-      ) : null}
-
-      <main className={`stage${active && !compact ? " has-note" : ""}${score ? " has-score" : ""}`}>
-        {score ? (
-          <ScorePanel
-            score={score}
-            selected={selected}
-            onToggle={(id) => {
-              setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
-            }}
-            onOpen={setActiveId}
-          />
-        ) : null}
-        {scene === "empty" || !data ? (
-          <DropGate
-            hot={hot}
-            onHot={setHot}
-            onFiles={(files) => void onFiles(files)}
-            demoPresetId={demoPresetId}
-            onDemoPresetId={(id) => {
-              setDemoPresetId(id);
-              const preset = presetById(id);
-              if (preset) {
-                setJobTarget(jobFieldsFromPreset(preset));
-              }
-            }}
-            onDemo={(id) => void loadDemo("loaded", id)}
-            jobSlot={
-              <JobComposer value={jobTarget} onChange={setJobTarget} resumeText={resumeText} variant="plate" />
-            }
-          />
-        ) : (
-          <PdfStage
-            data={data}
-            zoom={zoom}
-            findings={findings}
-            sections={sectionBands}
-            activeId={activeId}
-            hoveredId={hoveredId}
-            drawMode={drawMode}
-            reading={reading}
-            onGlyphs={onGlyphs}
-            onSelect={setActiveId}
-            onHover={setHoveredId}
-            onDraw={onDraw}
-          />
-        )}
-        {active && !compact ? (
-          <div className="note-rail" ref={noteRef}>
-            <OverlayNote
-              key={active.id}
-              finding={active}
-              messages={messages}
-              draft={draft}
-              compact={false}
-              total={findings.length}
-              onDraft={setDraft}
-              onSend={onSend}
-              onClose={() => setActiveId(null)}
-              onIgnore={onIgnore}
-              onPrev={() => stepFinding(-1)}
-              onNext={() => stepFinding(1)}
-            />
-          </div>
-        ) : null}
-        {!compact ? <Leader key={active?.id ?? "none"} from={fromRect} to={toRect} /> : null}
-      </main>
-
-      {active && compact ? (
-        <OverlayNote
-          key={active.id}
-          finding={active}
-          messages={messages}
-          draft={draft}
-          compact
-          total={findings.length}
-          onDraft={setDraft}
-          onSend={onSend}
-          onClose={() => setActiveId(null)}
-          onIgnore={onIgnore}
-          onPrev={() => stepFinding(-1)}
-          onNext={() => stepFinding(1)}
-        />
-      ) : null}
-
-      {data ? (
-        <div className="trigger-dock" role="toolbar" aria-label="Page tools">
-          <button
-            type="button"
-            className={`ghost tight${drawMode ? " is-on" : ""}`}
-            aria-pressed={drawMode}
-            onClick={() => setDrawMode((value) => !value)}
-          >
-            Draw mark
-          </button>
-          <button type="button" className="ghost tight" onClick={() => setZoom((value) => Math.max(0.75, value - 0.15))}>
-            −
-          </button>
-          <span className="zoom-read">{Math.round(zoom * 100)}%</span>
-          <button type="button" className="ghost tight" onClick={() => setZoom((value) => Math.min(1.45, value + 0.15))}>
-            +
-          </button>
-          <button className={`primary tight${reading ? " is-busy" : ""}`} type="button" disabled={reading} onClick={() => void onReview()}>
-            {reading ? "Reading…" : targeted ? `Review against ${jobLabel}` : "Review with Jev"}
-          </button>
-          {scene === "reviewed" ? (
-            <button
-              type="button"
-              className={`ghost tight enhance${selected.length > 0 ? " is-armed" : ""}`}
-              disabled
-              title="Coming soon"
-            >
-              {selected.length > 0 ? `Enhance ${selected.length}` : "Enhance resume"}
-              <span className="soon-tag">Coming soon</span>
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {error ? <p className="studio-error">{error}</p> : null}
-      <SiteFooter />
-    </div>
+    <ReviewStudio
+      scene={scene}
+      reading={reading}
+      targeted={targeted}
+      jobOpen={jobOpen}
+      jobLabel={jobLabel}
+      jobTarget={jobTarget}
+      resumeText={resumeText}
+      filename={filename}
+      data={data}
+      zoom={zoom}
+      score={score}
+      selected={selected}
+      findings={findings}
+      sectionBands={sectionBands}
+      activeId={activeId}
+      hoveredId={hoveredId}
+      drawMode={drawMode}
+      hot={hot}
+      error={error}
+      demoPresetId={demoPresetId}
+      isNarrow={isNarrow}
+      diagnosticsOpen={diagnosticsOpen}
+      active={active}
+      messages={messages}
+      draft={draft}
+      fromRect={fromRect}
+      toRect={toRect}
+      noteRef={noteRef}
+      onJobOpenToggle={() => setJobOpen((open) => !open)}
+      onJobClose={() => setJobOpen(false)}
+      onJobTargetChange={setJobTarget}
+      onDiagnosticsOpenChange={setDiagnosticsOpen}
+      onHot={setHot}
+      onFiles={(files) => void onFiles(files)}
+      onDemoPresetId={(id) => {
+        setDemoPresetId(id);
+        const preset = presetById(id);
+        if (preset) {
+          setJobTarget(jobFieldsFromPreset(preset));
+        }
+      }}
+      onDemo={(id) => void loadDemo("loaded", id)}
+      onGlyphs={onGlyphs}
+      onSelect={setActiveId}
+      onHover={setHoveredId}
+      onDraw={onDraw}
+      onToggleSelected={(id) => {
+        setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+      }}
+      onZoomDelta={(delta) => setZoom((value) => Math.min(1.45, Math.max(0.75, value + delta)))}
+      onReview={() => void onReview()}
+      onDrawModeToggle={() => setDrawMode((value) => !value)}
+      onDraft={setDraft}
+      onSend={onSend}
+      onIgnore={onIgnore}
+      onStepFinding={stepFinding}
+    />
   );
 }
 

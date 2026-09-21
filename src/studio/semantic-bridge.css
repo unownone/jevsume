@@ -1,0 +1,33 @@
+/**
+ * Maps global Pro-sume semantic tokens onto legacy studio custom properties.
+ * PDF paper/ink colors (--paper-*) stay local to the canvas (bounded legacy exception).
+ */
+.studio {
+  --desk: var(--background);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --panel: var(--card);
+  --line: var(--border);
+  --gold: var(--primary);
+  --cyan: var(--accent);
+  --rose: var(--destructive);
+  --ok: var(--success);
+  --focus: var(--ring);
+  --bg: var(--background);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio .bounce-in,
+  .studio .drop-plate,
+  .studio .persona-pop,
+  .studio .score-chip,
+  .studio .score-orb,
+  .studio .diagnostics-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.studio .drop-actions .studio-action {
+  min-height: 2.25rem;
+}

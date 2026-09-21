@@ -13,9 +13,20 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["./worker-configuration.d.ts"]
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["worker", "packages/jev", "test", "shared", "mcp"],
-  "exclude": ["mcp/cli.ts", "mcp/stdio.ts", "test/mcp-cli.test.ts", "test/mcp-skill.test.ts"]
+  "include": ["worker", "packages/jev", "test", "shared", "mcp", "worker-configuration.d.ts"],
+  "exclude": [
+    "mcp/cli.ts",
+    "mcp/stdio.ts",
+    "test/mcp-cli.test.ts",
+    "test/mcp-skill.test.ts",
+    "test/**/*.test.tsx",
+    "test/setup-dom.ts",
+    "test/uat/**",
+    "test/design-tokens.test.ts",
+    "test/site-app-lazy.test.ts",
+    "test/review-studio-copy.test.ts",
+    "test/review-studio-viewport.test.ts"
+  ]
 }
