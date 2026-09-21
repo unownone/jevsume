@@ -69,6 +69,8 @@
   --mark-works: rgba(142, 224, 168, 0.22);
   --mark-partial: rgba(232, 197, 114, 0.28);
   --mark-risk: rgba(255, 143, 163, 0.28);
+  --paper: #f7f4ec;
+  --paper-ink: #16141c;
   --focus: #e8c572;
   font-family: "Instrument Sans", system-ui, sans-serif;
   background: var(--bg);
@@ -774,5 +776,51 @@ textarea {
   .annotation {
     display: flex;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 620ms ease,
+      transform 620ms ease;
+  }
+
+  .landing-reveal--visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes route-loading-indeterminate {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+
+  .route-loading-bar {
+    width: 38%;
+    animation: route-loading-indeterminate 1.35s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading-bar {
+    width: 100%;
+    opacity: 0.55;
+    animation: none;
   }
 }

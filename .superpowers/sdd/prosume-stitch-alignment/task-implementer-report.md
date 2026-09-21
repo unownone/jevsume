@@ -2,41 +2,38 @@
 
 ## Status
 
-**Complete** on branch `cursor/prosume-stitch-alignment-47f5`. MCP `/agents` page recomposed to match Stitch layout (hero, status, hosted/local primary tabs, client workbench, tools grid, privacy, footer CTA) while preserving shipped MCP facts.
+**Complete** on branch `cursor/prosume-stitch-alignment-47f5`. Landing `/` rebuilt to Stitch information architecture with amber-carbon tokens, scroll reveal, demo telemetry, integration cards, factual proof, trust bar, and motion fallbacks. MCP `/agents` unchanged in this pass.
 
-## Final verification (2026-09-21, agents page pass)
+## Final verification (2026-09-21, landing rebuild)
 
 ```text
-pnpm typecheck — exit 0
-pnpm test — 33 files, 185 tests, exit 0
-pnpm uat — 10 tests, exit 0
-pnpm build — exit 0
+pnpm typecheck → exit 0
+pnpm test → 34 files, 188 tests passed
+pnpm uat → 1 file, 11 tests passed
+pnpm build → exit 0 (client + worker)
+Playwright → http://127.0.0.1:4173/ loaded after preview restart (post-build)
 ```
 
-Playwright smoke on `/agents`: not configured in this repo (`package.json` has no Playwright script).
-
-## This pass
+## Landing rebuild (this pass)
 
 | Area | Change |
 | --- | --- |
-| `/agents` layout | Stitch-aligned hero + gateway/protocol status; primary **Hosted vs Local** card tabs; integration workbench with animated client tabs |
-| Clipboard | `McpSnippetBlock` with visible Copied state + `aria-live` |
-| Tools | `AGENTS_MCP_TOOLS` lists `list_job_lenses`, `get_job_lens`, `suggest_job_lens`, `review_resume` |
-| Tests | Expanded `test/agents-page.test.tsx`; UAT covers tab switching, CTAs, connection mode |
-| Copy | No SSE, fake package, rewrite tools, or unsupported privacy claims |
+| IA / sections | `src/components/landing/*` — hero + drop preview, `01 // LIVE_TELEMETRY`, pipeline, `02 // INTEGRATION_WORKFLOWS`, truth cards, proof grid, trust bar, closing CTA |
+| Motion | `LandingReveal`, `.landing-reveal` in `index.css`, animated demo score/bars, `motion-safe` / `motion-reduce` on CTAs and cards |
+| Copy | Extended `landingCopy` + `LANDING_FORBIDDEN_PATTERNS` in `site-copy.ts` |
+| Tests | `test/landing-page.test.tsx`, UAT landing section + reduced-motion checks in `test/uat/site.smoke.test.tsx` |
 
 ## Ground truth
 
-- Hosted: Streamable HTTP at `/mcp`, no API key, shared Worker rate limit
-- Local: `npx -y github:unownone/jevsume` + `TYPESAFE_API_KEY` → api.typesafe.ai
-- Visual: Stitch reference + `docs/design/prosume-stitch/agents-desktop.png`
+- Visual: `docs/design/prosume-stitch/*.png`, user reference screenshots
+- Superdesign CLI v0.14.0 — not authenticated; implemented from PNGs
 
 ## Remaining concerns
 
-- No Playwright pixel/regression suite for `/agents`
+- No Superdesign canvas pixel diff without auth
 - Classic review chunk ~514 kB
-- Superdesign canvas diff still blocked without auth
+- GitHub stars API fallback when rate-limited
 
 ## Claims policy
 
-Landing and agents copy avoid unsupported rewrite/ATS/zero-retention/in-browser-only claims.
+No invented volume, privacy, ATS certification, fixed latency/cost, or auto-rewrite promises on landing or agents. Demo telemetry labeled illustrative.
