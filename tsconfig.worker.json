@@ -24,6 +24,7 @@
     "test/mcp-skill.test.ts",
     "test/**/*.test.tsx",
     "test/setup-dom.ts",
+    "test/uat/**",
     "test/design-tokens.test.ts",
     "test/site-app-lazy.test.ts"
   ]

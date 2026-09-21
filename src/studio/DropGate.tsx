@@ -1,5 +1,6 @@
 import type { DragEvent, ReactNode } from "react";
 import { DEFAULT_PRESET_ID } from "../../shared/resume-presets.ts";
+import { Button } from "@/components/ui/button.tsx";
 import { trackClick } from "../lib/events.ts";
 import { PresetSelect } from "./PresetSelect.tsx";
 
@@ -51,21 +52,29 @@ export function DropGate({
           />
         </div>
         <div className="drop-actions">
-          <label className="primary tight">
-            Choose PDF
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              hidden
-              onChange={(event) => onFiles(event.target.files)}
-            />
-          </label>
-          <button className="ghost tight" type="button" onClick={() => {
-            trackClick("/demo");
-            onDemo(demoPresetId || DEFAULT_PRESET_ID);
-          }}>
+          <Button asChild className="studio-action" size="sm">
+            <label>
+              Choose PDF
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                hidden
+                onChange={(event) => onFiles(event.target.files)}
+              />
+            </label>
+          </Button>
+          <Button
+            className="studio-action"
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              trackClick("/demo");
+              onDemo(demoPresetId || DEFAULT_PRESET_ID);
+            }}
+          >
             Load demo PDF
-          </button>
+          </Button>
         </div>
       </article>
       <article className="drop-plate is-soon bounce-in delay" aria-disabled="true">
@@ -82,8 +91,13 @@ export function DropGate({
 function PdfGlyph() {
   return (
     <svg className="plate-mark" viewBox="0 0 48 56" aria-hidden="true">
-      <rect x="6" y="4" width="36" height="48" rx="3" fill="#f7f4ec" />
-      <path d="M14 16h20M14 22h16M14 28h18M14 34h12" stroke="#1a1408" strokeWidth="1.6" strokeLinecap="round" />
+      <rect x="6" y="4" width="36" height="48" rx="3" fill="var(--paper)" />
+      <path
+        d="M14 16h20M14 22h16M14 28h18M14 34h12"
+        stroke="var(--paper-ink)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -91,8 +105,8 @@ function PdfGlyph() {
 function LinkedInGlyph() {
   return (
     <svg className="plate-mark" viewBox="0 0 48 56" aria-hidden="true">
-      <rect x="6" y="4" width="36" height="48" rx="3" fill="#d9efe9" />
-      <rect x="16" y="18" width="16" height="16" rx="2" fill="#1a5c54" />
+      <rect x="6" y="4" width="36" height="48" rx="3" fill="var(--paper)" opacity="0.85" />
+      <rect x="16" y="18" width="16" height="16" rx="2" fill="var(--accent)" />
     </svg>
   );
 }

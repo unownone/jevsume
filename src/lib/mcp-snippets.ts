@@ -20,18 +20,68 @@ export type McpSnippet = {
 
 const PLACEHOLDER_KEY = "YOUR_TYPESAFE_API_KEY";
 
+export function hostedMcpUrl(origin: string): string {
+  return `${origin}${MCP_PATH}`;
+}
+
+/** Generic streamable HTTP block from readme (Claude Desktop, Cursor, and other URL-based hosts). */
 export function hostedMcpJson(origin: string): string {
   return JSON.stringify(
     {
       mcpServers: {
         jevsume: {
-          url: `${origin}${MCP_PATH}`,
+          url: hostedMcpUrl(origin),
         },
       },
     },
     null,
     2,
   );
+}
+
+export function hostedClaudeCodeJson(origin: string): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        jevsume: {
+          type: "http",
+          url: hostedMcpUrl(origin),
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
+
+export function hostedCursorJson(origin: string): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        jevsume: {
+          url: hostedMcpUrl(origin),
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
+
+/** Remote MCP URL entry for ~/.codex/config.toml (Codex CLI / shared Codex Chat config). */
+export function hostedCodexToml(origin: string): string {
+  return `[mcp_servers.jevsume]
+url = "${hostedMcpUrl(origin)}"
+`;
+}
+
+export function hostedCodexChatGuide(origin: string): string {
+  return `${hostedCodexToml(origin)}
+# ChatGPT desktop, Codex CLI, and the Codex IDE extension share ~/.codex/config.toml.
+# Save, restart the client, then use /mcp in the composer to list servers.
+#
+# ChatGPT web does not read ~/.codex/config.toml — use local npx with TYPESAFE_API_KEY instead.
+`;
 }
 
 export function claudeDesktopLocalJson(windows = false): string {
@@ -96,7 +146,7 @@ codex mcp list`;
 export function codexChatLocalGuide(): string {
   return `ChatGPT desktop, Codex CLI, and the Codex IDE extension share ~/.codex/config.toml.
 
-1. Add the Codex TOML block (see TOML tab) to ~/.codex/config.toml once.
+1. Add the Codex TOML block (local tab) to ~/.codex/config.toml once.
 2. ChatGPT desktop: Settings → MCP servers → Add server
    - Name: jevsume
    - Transport: STDIO
@@ -131,18 +181,57 @@ export function genericLocalJson(): string {
   return claudeDesktopLocalJson(false);
 }
 
+export function genericHostedSnippet(origin: string): McpSnippet {
+  return {
+    label: `Hosted streamable HTTP · ${MCP_PATH} (no API key)`,
+    text: hostedMcpJson(origin),
+    format: "json",
+  };
+}
+
 export function mcpSnippetForClient(
   client: McpClientId,
   mode: McpSnippetMode,
   origin: string,
   options?: { windowsClaudeDesktop?: boolean },
 ): McpSnippet {
+  const url = hostedMcpUrl(origin);
+
   if (mode === "hosted") {
-    return {
-      label: `Hosted streamable HTTP · ${MCP_PATH}`,
-      text: hostedMcpJson(origin),
-      format: "json",
-    };
+    switch (client) {
+      case "claude-code":
+        return {
+          label: `Claude Code · remote HTTP · ${url}`,
+          text: hostedClaudeCodeJson(origin),
+          format: "json",
+        };
+      case "codex":
+        return {
+          label: `Codex CLI · ~/.codex/config.toml · ${url}`,
+          text: hostedCodexToml(origin),
+          format: "toml",
+        };
+      case "codex-chat":
+        return {
+          label: `Codex Chat · shared ~/.codex/config.toml · ${url}`,
+          text: hostedCodexChatGuide(origin),
+          format: "text",
+        };
+      case "cursor":
+        return {
+          label: `Cursor · .cursor/mcp.json · ${url}`,
+          text: hostedCursorJson(origin),
+          format: "json",
+        };
+      case "claude":
+        return {
+          label: `Claude Desktop · ${url}`,
+          text: hostedMcpJson(origin),
+          format: "json",
+        };
+      default:
+        return genericHostedSnippet(origin);
+    }
   }
 
   switch (client) {

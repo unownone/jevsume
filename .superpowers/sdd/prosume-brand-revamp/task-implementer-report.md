@@ -2,72 +2,59 @@
 
 ## Status
 
-Implementation complete on `cursor/prosume-rebrand-47f5`, including a **release-fix pass** for review blockers (token collision, MCP snippets, routing, viewport, lazy routes, animation utilities, dependency cleanup, and expanded tests).
+Implementation complete on `cursor/prosume-rebrand-47f5`, including release-fix passes and **final review blockers** (hosted MCP per client, studio semantic bridge, deterministic UAT harness).
 
-## Plan vs repository rulings
-
-| Plan expectation | Ruling |
-| --- | --- |
-| Isolated task Markdown under `docs/superpowers/tasks/` before code | **Not present in repo** at implementation time (only the approved artifact plan). Proceeded using the artifact plan + Stitch zip + existing `PRODUCT.md` / `.impeccable/surfaces/resume-studio.md`. |
-| Stitch project ID reconciliation via Stitch MCP | **Blocked** — live Stitch MCP unavailable; used `/home/ubuntu/.cursor/projects/workspace/uploads/stitch_resume_doctor_9bba.zip` as visual source. Reference PNGs copied to `docs/design/prosume-stitch/`. |
-| Superdesign CLI bare preflight | **Unavailable** in this environment (`superdesign` not on PATH). |
-| Impeccable `context` launcher | **Unavailable** (binary not executable). Read `PRODUCT.md`, incumbent CSS/studio, and Impeccable surface brief directly per skill fallback. |
-| Brand mark spelling | **Pro-sume** in UI; **jevsume** retained for repo/package/MCP command identifiers. |
-| MCP setup page route vs HTTP endpoint | UI page at **`/agents`**; hosted HTTP MCP remains **`/mcp`** (Worker only — not a SPA route). |
-| Classic text review | **`/classic`** plus legacy **`?view=classic`** redirect (preserves other query params). |
-| PDF studio behavior | **Unchanged** functionally; `/review?scene=` fixtures retained. |
-
-## Architecture delivered
-
-- **Router**: `src/SiteApp.tsx` — lazy-loaded routes, `LegacyViewRedirect`, metadata + analytics.
-- **Theme**: Tailwind v4 + `@import "tw-animate-css"` for shadcn motion utilities; shadcn `--muted` surface vs legacy **`--text-muted`** text (no collision).
-- **MCP snippets**: `src/lib/mcp-snippets.ts` — client-accurate hosted/local blocks from `docs/mcp-local.md` (Claude Desktop, Claude Code CLI/JSON, Codex TOML/CLI, Codex Chat guide, Cursor JSON).
-- **Docs link**: `DOCS_MCP_LOCAL_URL` → GitHub blob (not `/docs/mcp-local.md` in-app).
-- **Review viewport**: `/review` renders `StudioApp` alone at `100dvh`; compact **`StudioSiteNav`** in studio chrome (no stacked marketing header).
-- **Code splitting**: separate chunks for `ReviewStudioPage`, `ClassicReviewPage`, landing/agents (PDF worker chunk isolated).
-
-## Release-fix pass (commands & results)
+## Verification (exact commands — final pass)
 
 Run from repo root on `cursor/prosume-rebrand-47f5`:
 
 ```bash
 pnpm typecheck   # exit 0
-pnpm test        # 31 files, 170 tests, exit 0
-pnpm build       # exit 0; split chunks e.g. ReviewStudioPage ~54kB, ClassicReviewPage ~514kB, pdf.worker ~467kB
+pnpm test        # 33 files, 177 tests, exit 0 (excludes test/uat/**)
+pnpm uat         # 1 file, 9 tests, exit 0 — jsdom MemoryRouter harness (no Playwright/browser run)
+pnpm build       # exit 0
 ```
 
-### Fixes applied
+**What ran:** Vitest jsdom UAT (`vitest.uat.config.ts`) exercising `SiteAppRoutes` via `RouterProvider` + `createMemoryRouter`. **Not run:** Playwright or headed browser (MCP Playwright namespace available but no `pnpm uat:browser` script; no visual screenshot verification).
 
-| Issue | Resolution |
-| --- | --- |
-| `--muted` token collision | Renamed legacy text token to `--text-muted`; updated `index.css` + `studio.css`; kept shadcn `--muted` surface. |
-| Broken docs href | `DOCS_MCP_LOCAL_URL` → `https://github.com/unownone/jevsume/blob/main/docs/mcp-local.md` |
-| Generic MCP snippets | `mcp-snippets.ts` + per-client tabs (incl. Codex Chat) |
-| Unsupported speed/cost copy | Landing proof copy references telemetry only; no sub-second or \$0.042/Mtok total claims |
-| `?view=classic` | `LegacyViewRedirect` → `/classic` |
-| `/review` overflow | Removed `SiteHeader` wrapper; studio full viewport + in-chrome nav |
-| Lazy loading | `React.lazy` + `Suspense` in `SiteApp.tsx` |
-| shadcn animations | Added `tw-animate-css`; removed redundant `cn` and `@radix-ui/react-slot` packages |
-| `/mcp` UI route | Confirmed no SPA route; `resolveSiteRoute("/mcp")` → landing fallback |
+## Final review blocker resolutions
 
-## Verification (latest)
+### 1. Hosted MCP snippets
 
-- `pnpm typecheck` — **pass**
-- `pnpm test` — **170/170** pass
-- `pnpm build` — **pass** (route-level code splitting active)
+- **Generic hosted block** on `/agents`: `HostedMcpPanel` — readme-style JSON `{ "url": "<origin>/mcp" }`.
+- **Per-client hosted tab** in `mcpSnippetForClient`:
+  - Claude Desktop / Cursor / generic → URL JSON
+  - Claude Code → `{ "type": "http", "url": "..." }`
+  - Codex CLI → TOML `url = "..."` in `[mcp_servers.jevsume]`
+  - Codex Chat → TOML + shared-config notes (web client limitation)
+- Tests: `test/mcp-snippets.test.ts`, `test/mcp-clipboard.test.ts`, UAT snippet URL assertion.
+
+### 2. Review surface / token engine
+
+- **`src/studio/semantic-bridge.css`**: maps shadcn semantic tokens → legacy studio chrome vars (`--desk`, `--text-muted`, `--gold`, etc.).
+- **Bounded legacy exception**: PDF `--paper*` canvas colors and overlay severity literals remain in `studio.css` (documented in `docs/superpowers/studio-semantic-bridge.md`).
+- **Migrated controls**: `DropGate` actions → shadcn `Button`; `StudioSiteNav` → shadcn ghost buttons; drop glyphs use `var(--paper)` / `var(--paper-ink)` / `var(--accent)`.
+- **`prefers-reduced-motion`** rules for studio animations in semantic bridge.
+
+### 3. UAT / accessibility harness
+
+- **Script:** `pnpm uat` → `vitest run --config vitest.uat.config.ts`
+- **Coverage (`test/uat/site.smoke.test.tsx`):** `/`, `/review?scene=empty`, `/agents`, `/classic`, `?view=classic` redirect, `/mcp` vs `/agents`, landing CTAs, hosted snippet URL in JSON, Copy buttons present, mobile sheet menu + dialog, review demo control, reduced-motion CSS, mobile menu focus.
+
+## Architecture (unchanged core)
+
+- Routes: `SiteApp` + exported `SiteAppRoutes` for tests; lazy-loaded pages; `/mcp` remains Worker-only (no SPA route).
+- Theme: Tailwind v4 + `tw-animate-css`; `--muted` surface vs `--text-muted` text.
+- Docs link: `DOCS_MCP_LOCAL_URL` on GitHub.
 
 ## Remaining concerns
 
-1. **ClassicReviewPage chunk** still ~514kB (mammoth + review UI) — acceptable split but heavy first visit to `/classic`.
-2. **Studio Tailwind migration** incomplete — studio remains on `studio.css`.
-3. **Task doc debt** — plan-listed `docs/superpowers/tasks/*.md` not in repo.
-4. **DESIGN.md** not regenerated for Pro-sume Persuade surfaces.
-
-## Design references
-
-- Stitch archive screens: `docs/design/prosume-stitch/{landing,review,agents}-desktop.png`
-- Voice/claims grounded in `readme.md`, `docs/mcp-local.md`, `PRODUCT.md`
+1. **Clipboard in jsdom:** UAT asserts Copy controls + JSON payload unit test; does not assert live `navigator.clipboard.writeText` in jsdom.
+2. **Studio canvas tokens:** Full migration of score orb / overlay literals not done (documented exception).
+3. **Classic chunk** ~514kB gzip-heavy on first `/classic` visit.
+4. **Plan task Markdown** still absent under `docs/superpowers/tasks/`.
+5. **No Playwright e2e** — add `uat:browser` later if headed CI is required.
 
 ## Commits
 
-Initial revamp: `97df2df`, `b9d4921`, `0b5be23`. Release-fix commit: see latest on branch (`git log -1`).
+See `git log` on branch — latest final-pass commit after `5d64f34`.
