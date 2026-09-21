@@ -42,7 +42,14 @@ export const landingCopy = {
   closingPrimary: "Open the review studio",
   closingSecondary: "Set up MCP",
   heroPreviewEyebrow: "Target lens",
-  heroPreviewLens: "General resume review",
+  heroPreviewLenses: [
+    { id: "general", label: "General" },
+    { id: "targeted", label: "Role-targeted" },
+  ] as const,
+  heroPreviewLensReadouts: {
+    general: "General resume review",
+    targeted: "Staff engineer · platform lens",
+  } as const,
   heroPreviewDropTitle: "Drag & drop your resume (PDF)",
   heroPreviewDropHint: "or open the review studio to browse files",
   heroPreviewSample: "Try the demo PDF in the studio",
@@ -52,10 +59,27 @@ export const landingCopy = {
   telemetryStatus: "Demo · typed JevScore dimensions",
   telemetryScoreLabel: "Sample JevScore",
   telemetryScoreHint: "Illustrative aggregate from a demo run—not your document.",
-  telemetryDimensions: [
-    { label: "Structure & parsing", value: 76, hint: "Sections the extractor could map cleanly." },
-    { label: "Action verbs & tone", value: 85, hint: "Active voice and clarity on key bullets." },
-    { label: "Quantified impact", value: 68, hint: "Metrics and outcomes called out explicitly.", warn: true },
+  telemetryPresets: [
+    {
+      id: "balanced",
+      label: "Balanced",
+      score: 82,
+      dimensions: [
+        { label: "Structure & parsing", value: 76, hint: "Sections the extractor could map cleanly." },
+        { label: "Action verbs & tone", value: 85, hint: "Active voice and clarity on key bullets." },
+        { label: "Quantified impact", value: 68, hint: "Metrics and outcomes called out explicitly.", warn: true },
+      ],
+    },
+    {
+      id: "metrics",
+      label: "Metrics gap",
+      score: 71,
+      dimensions: [
+        { label: "Structure & parsing", value: 74, hint: "Sections the extractor could map cleanly." },
+        { label: "Action verbs & tone", value: 79, hint: "Active voice and clarity on key bullets." },
+        { label: "Quantified impact", value: 52, hint: "Metrics and outcomes called out explicitly.", warn: true },
+      ],
+    },
   ] as const,
   telemetryFixTitle: "Priority diagnostic fix",
   telemetryFixImpact: "Example impact +14 pts",

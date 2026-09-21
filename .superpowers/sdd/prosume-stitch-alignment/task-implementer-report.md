@@ -2,38 +2,39 @@
 
 ## Status
 
-Branch `cursor/prosume-stitch-alignment-47f5` — landing motion + sample/demo resume paper treatment aligned with Stitch.
+Branch `cursor/prosume-stitch-alignment-47f5` (PR #17) — Stitch IA, amber-carbon UI, and a deliberate Framer Motion fluidity pass across landing, review studio, and MCP setup.
 
-## Sample resume paper fix (2026-09-21)
+## Fluid motion pass (2026-09-21)
 
 | Area | Change |
 | --- | --- |
-| Studio PDF | `canvasPaperBackground()` passes `.paper` fill to pdf.js; canvas uses `mix-blend-mode: multiply` |
-| Tokens | `--paper-mute` on `:root`; studio inherits global `--paper*` |
-| Landing telemetry | Ivory paper surface via `sample-resume-preview.ts` + `DEFAULT_PRESET` lines |
-| Tests | `test/sample-resume-paper.test.tsx`; `test/setup-dom.ts` matchMedia `addEventListener` mock |
-| Tooling | `vite-env.d.ts` pdf worker `?url` module for `tsc -b` |
+| Shared | `src/lib/prosume-motion.ts` — springs, panel/control/reveal presets, `usePrefersReducedMotion` (legacy + modern `matchMedia`), `useAnimatedScore` (bidirectional), `animatedScoreStep` |
+| UI kit | `src/components/prosume-motion-ui.tsx` — `MotionReveal`, `MotionStagger`, `MotionPanelSwap`, `StudioPressable`, landing segmented control/readout, `AnimatedScoreBar` |
+| Landing | Hero lens control + readout; telemetry presets + animated dimension bars; pipeline card stagger; `data-landing-reveal` CSS fallback |
+| Review studio | Spring score chip + panel dials/bars; reading orb; diagnostics rail stagger + detail panel; dock press/hover (no PDF transform) |
+| MCP `/agents` | Connection/client panel swaps (~260ms ease); copy URL feedback transition |
+| Tests | `test/motion-presets.test.ts`, `test/use-animated-score.test.tsx`, `test/landing-motion.test.tsx`; review studio scene smoke |
 
-## Landing motion (2026-09-21)
+## Sample resume paper (prior)
 
-- Section reveals use Framer `whileInView` via `MotionReveal`; `data-landing-reveal="pending|shown"` for CSS fallback.
-- Hero mount entrance; below-fold pending until intersection. Reduced-motion: immediate visible state.
-- Tests: `test/landing-motion.test.tsx`; `test/setup-dom.ts` mocks `IntersectionObserver` + `matchMedia`.
+Studio PDF multiply blend, landing ivory paper via `sample-resume-preview.ts`, `test/sample-resume-paper.test.tsx`.
 
-## Verification
+## Verification (2026-09-21)
 
 ```text
 pnpm typecheck — exit 0
-pnpm test — exit 0 (includes sample-resume-paper + landing-motion)
-pnpm uat — exit 0
-pnpm build — exit 0
+pnpm test — 40 files, 211 tests — exit 0
+pnpm uat — 12 tests — exit 0
+pnpm exec vite build — exit 0
 ```
+
+Browser smoke: `/`, `/review?scene=empty`, `/agents` via preview + Playwright (manual spot-check in agent run when preview available).
 
 ## Remaining concerns
 
-- PDFs that paint opaque white page boxes may still read brighter than generated demo text (multiply helps; no global recolor of uploads)
+- Full monorepo `pnpm build` (`tsc -b` all refs) may still surface pre-existing worker/CSS side-effect issues; app build via `vite build` is green
 - Superdesign pixel diff without auth
-- Classic review chunk ~514 kB
+- Classic review chunk ~514 kB; `prosume-motion-ui` ~45 kB gzip on landing/studio routes
 
 ## Claims policy
 

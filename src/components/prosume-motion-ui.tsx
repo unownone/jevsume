@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils.ts";
-import { LANDING_REVEAL_BASE, landingRevealVisible } from "@/components/landing/landing-motion.ts";
-import { useInViewOnce } from "@/components/landing/useInViewOnce.ts";
+import { LANDING_REVEAL_BASE } from "@/components/landing/landing-motion.ts";
 import {
   panelVariants,
   revealVariants,
@@ -20,7 +20,7 @@ export function MotionReveal({
   className,
   as = "div",
   landingCompat = false,
-  viewportAmount = 0.12,
+  viewportAmount = 0.18,
   "data-landing-section": section,
   "aria-labelledby": labelledBy,
 }: {
@@ -33,24 +33,23 @@ export function MotionReveal({
   "aria-labelledby"?: string;
 }) {
   const reduced = usePrefersReducedMotion();
-  const { ref, visible } = useInViewOnce<HTMLElement>(viewportAmount);
+  const [revealed, setRevealed] = useState(reduced);
   const Tag = motion[as];
 
   return (
     <Tag
-      ref={ref as never}
       data-landing-section={section}
       aria-labelledby={labelledBy}
-      className={cn(
-        landingCompat ? LANDING_REVEAL_BASE : undefined,
-        landingCompat ? landingRevealVisible(visible || reduced) : undefined,
-        className,
-      )}
-      data-landing-reveal={landingCompat ? (visible || reduced ? "shown" : "pending") : undefined}
-      initial={reduced ? false : "hidden"}
-      animate={reduced || visible ? "visible" : "hidden"}
+      className={cn(landingCompat ? LANDING_REVEAL_BASE : undefined, className)}
+      data-landing-reveal={landingCompat ? (revealed ? "shown" : "pending") : undefined}
       variants={revealVariants}
+      initial={reduced ? false : "hidden"}
+      whileInView={reduced ? undefined : "visible"}
+      viewport={{ once: true, amount: viewportAmount, margin: "0px 0px -10% 0px" }}
       transition={resolveRevealTransition(reduced)}
+      onViewportEnter={() => {
+        if (landingCompat) setRevealed(true);
+      }}
     >
       {children}
     </Tag>
@@ -136,16 +135,28 @@ export function MotionPanelSwap({
   );
 }
 
-export function StudioPressable({ className, children, ...props }: ComponentPropsWithoutRef<"button">) {
+export function StudioPressable({
+  className,
+  children,
+  disabled,
+  onClick,
+  "aria-label": ariaLabel,
+  type = "button",
+}: Pick<
+  ComponentPropsWithoutRef<"button">,
+  "className" | "children" | "disabled" | "onClick" | "aria-label" | "type"
+>) {
   const reduced = usePrefersReducedMotion();
   return (
     <motion.button
-      type="button"
+      type={type}
       className={className}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={ariaLabel}
       whileHover={reduced ? undefined : { y: -1 }}
       whileTap={reduced ? undefined : { scale: 0.98 }}
       transition={resolveControlTransition(reduced)}
-      {...props}
     >
       {children}
     </motion.button>

@@ -40,5 +40,5 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
     unobserve() {}
     disconnect() {}
   }
-  globalThis.IntersectionObserver = MockIntersectionObserver as typeof IntersectionObserver;
+  globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
 }
