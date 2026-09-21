@@ -130,6 +130,17 @@ export const reviewCopy = {
     "LinkedIn PDF export will use the same studio when it ships. Not wired yet.",
 } as const;
 
+export const studioCopy = {
+  diagnosticsTitle: "Actionable diagnostics",
+  diagnosticsHint: "Open a row to inspect the passage on the page. Jev does not rewrite the PDF.",
+  inspectCta: "Inspect in source",
+  mcpCardTitle: "MCP for agents",
+  mcpCardBody: "Same review_resume tools on this Worker or local stdio with your TypeSafe key.",
+  mcpCta: "MCP setup",
+} as const;
+
+export const STUDIO_FORBIDDEN_PATTERNS = LANDING_FORBIDDEN_PATTERNS;
+
 export const agentsCopy = {
   eyebrow: "Model Context Protocol · Jev review tools",
   title: "Bring Pro-sume into your AI assistant",

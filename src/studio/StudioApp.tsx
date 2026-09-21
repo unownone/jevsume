@@ -26,6 +26,7 @@ import { Leader } from "./Leader.tsx";
 import { OverlayNote } from "./OverlayNote.tsx";
 import { PdfStage } from "./PdfStage.tsx";
 import type { SectionBand } from "./PageOverlay.tsx";
+import { DiagnosticsRail } from "./DiagnosticsRail.tsx";
 import { ScorePanel } from "./ScorePanel.tsx";
 import "./studio.css";
 import "./semantic-bridge.css";
@@ -480,11 +481,15 @@ export default function StudioApp() {
   const messages = active ? (threads[active.id] ?? []) : [];
   const targeted = hasJobTarget(jobTarget);
   const jobLabel = targeted ? jobTargetLabel(jobTarget) : "Target a job";
+  const showDiagnosticsRail = scene === "reviewed" && !compact;
+  const noteDetail = active && !compact ? (
+    <OverlayNote key={active.id} finding={active} messages={messages} draft={draft} compact={false} total={findings.length} onDraft={setDraft} onSend={onSend} onClose={() => setActiveId(null)} onIgnore={onIgnore} onPrev={() => stepFinding(-1)} onNext={() => stepFinding(1)} />
+  ) : null;
 
   return (
     <div
       className={`studio${scene === "reviewed" ? " is-reviewed" : ""}${reading ? " is-loading" : ""}${targeted ? " is-job-targeted" : ""}`}
-      style={{ "--zoom": String(zoom) } as CSSProperties}
+      data-studio-scene={scene} data-studio-reading={reading ? "true" : "false"} style={{ "--zoom": String(zoom) } as CSSProperties}
     >
       <header className="studio-chrome">
         <div className="chrome-start">
@@ -539,7 +544,7 @@ export default function StudioApp() {
         </div>
       ) : null}
 
-      <main className={`stage${active && !compact ? " has-note" : ""}${score ? " has-score" : ""}`}>
+      <main className={`stage${score ? " has-score" : ""}${showDiagnosticsRail ? " has-diagnostics" : ""}`}>
         {score ? (
           <ScorePanel
             score={score}
@@ -584,7 +589,16 @@ export default function StudioApp() {
             onDraw={onDraw}
           />
         )}
-        {active && !compact ? (
+        {showDiagnosticsRail ? (
+          <div className="diagnostics-rail-wrap" ref={noteRef}>
+            <DiagnosticsRail findings={findings} activeId={activeId} reading={reading} onSelect={setActiveId} onHover={setHoveredId} detailSlot={noteDetail} />
+          </div>
+        ) : active && !compact ? (
+          <div className="note-rail" ref={noteRef}>
+            {noteDetail}
+          </div>
+        ) : null}
+        {false && active && !compact ? (
           <div className="note-rail" ref={noteRef}>
             <OverlayNote
               key={active.id}

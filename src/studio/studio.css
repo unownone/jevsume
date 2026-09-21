@@ -717,13 +717,14 @@
   place-items: start stretch;
 }
 
-.stage.has-score.has-note {
+.stage.has-score.has-note,
+.stage.has-score.has-diagnostics {
   grid-template-columns: minmax(198px, 230px) minmax(0, 1fr) minmax(260px, 22rem);
   gap: 16px;
   align-items: start;
 }
 
-.stage.has-score:not(.has-note) {
+.stage.has-score:not(.has-note):not(.has-diagnostics) {
   grid-template-columns: minmax(198px, 230px) minmax(0, 1fr);
   gap: 16px;
 }
@@ -1495,3 +1496,5 @@
     transform: translate(-50%, -50%);
   }
 }
+
+.diagnostics-rail-wrap{position:sticky;top:12px;}.diagnostics-rail{border:1px solid var(--line);border-radius:18px;padding:12px;background:#101018;}

@@ -1,18 +1,8 @@
-import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
-
-if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  });
+import '@testing-library/jest-dom/vitest';
+import { vi } from 'vitest';
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class { observe(){} unobserve(){} disconnect(){} } as typeof ResizeObserver;
+}
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', { value: vi.fn(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn() })) });
 }

@@ -21,7 +21,8 @@
   .studio .drop-plate,
   .studio .persona-pop,
   .studio .score-chip,
-  .studio .score-orb {
+  .studio .score-orb,
+  .studio .diagnostics-card {
     animation: none !important;
     transition: none !important;
   }
