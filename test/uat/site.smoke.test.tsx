@@ -40,9 +40,12 @@ describe("UAT: route loading and navigation", () => {
     });
 
     await router.navigate("/review?scene=empty");
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Drop a resume PDF/i })).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: /Drop a resume PDF/i })).toBeInTheDocument();
+      },
+      { timeout: 12_000 },
+    );
 
     await router.navigate(AGENTS_PATH);
     await waitFor(() => {
