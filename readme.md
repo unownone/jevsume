@@ -33,22 +33,13 @@ With `pnpm dev`, the endpoint is `http://localhost:5173/mcp`. After deploy, it i
 
 Runs Jev with **your** key. Does not use the hosted rate limit.
 
+**Setup for Claude, Claude Code, Codex, Codex Chat, and Cursor:** [`docs/mcp-local.md`](docs/mcp-local.md).
+
 ```bash
 npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY
 ```
 
 From a clone: `pnpm mcp -- --api-key $TYPESAFE_API_KEY`. `--mock` uses the deterministic provider (tests/dev only).
-
-```json
-{
-  "mcpServers": {
-    "jevsume": {
-      "command": "npx",
-      "args": ["-y", "github:unownone/jevsume", "--api-key", "<TYPESAFE_API_KEY>"]
-    }
-  }
-}
-```
 
 ### Tools
 
@@ -132,3 +123,4 @@ Official TypeSafe env name is `TYPESAFE_API_KEY` ([SDK ENV](https://docs.typesaf
 - Design: [`docs/superpowers/specs/2026-09-17-jevsume-design.md`](docs/superpowers/specs/2026-09-17-jevsume-design.md)
 - Plan: [`docs/superpowers/plans/2026-09-17-jevsume-plan.md`](docs/superpowers/plans/2026-09-17-jevsume-plan.md)
 - MCP skill: [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md)
+- Local MCP (npx): [`docs/mcp-local.md`](docs/mcp-local.md)

@@ -2,7 +2,7 @@
 
 Streamable HTTP (MCP 2025-03-26): `POST /mcp` on the Worker. No auth. OAuth later.
 
-Local stdio (requires TypeSafe key):
+Local stdio (requires TypeSafe key). Copy-paste configs for Claude, Claude Code, Codex, Codex Chat, and Cursor: [docs/mcp-local.md](../../docs/mcp-local.md).
 
 ```bash
 npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY
