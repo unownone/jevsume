@@ -32,9 +32,9 @@ export const landingCopy = {
   typesafeTitle: "Powered by TypeSafe System One",
   typesafeBody:
     "Jev is the typed judgment engine behind fast reviews. Scores and findings come from System One calls—not a generic chat completion.",
-  proofTitle: "Built for quick iteration",
+  proofTitle: "Honest about limits",
   proofBody:
-    "On the demo resume with the mock provider, reviews finish in under a second. With live Jev, cost tracks input tokens at about $0.042 per million—your mileage varies with resume length and persona depth.",
+    "Telemetry in the UI reports what each run actually used—server time, token counts, and estimated input cost from the Worker. Timing and spend depend on resume length, persona depth, and whether you use the mock provider or live Jev.",
   accuracyTitle: "Accurate about what ships",
   accuracyBody:
     "Notes attach to extracted text in the classic view and to PDF regions in the studio as overlays—drawing is manual, not automatic PDF editing.",

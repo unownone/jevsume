@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -60,7 +61,7 @@
   --panel: #12121c;
   --line: rgba(244, 241, 234, 0.1);
   --text: #f4f1ea;
-  --muted: #c4bba8;
+  --text-muted: #c4bba8;
   --gold: #e8c572;
   --cyan: #7ee0d6;
   --rose: #ff8fa3;
@@ -137,7 +138,7 @@ select {
   padding: 11px 18px calc(11px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: #07070d;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 0.82rem;
   flex-shrink: 0;
 }
@@ -151,7 +152,7 @@ select {
 }
 
 .site-footer a {
-  color: var(--muted);
+  color: var(--text-muted);
   text-decoration: none;
   text-underline-offset: 3px;
   transition: color 160ms ease;
@@ -215,7 +216,7 @@ select {
   border-radius: 999px;
   padding: 7px 12px;
   font-size: 0.8rem;
-  color: var(--muted);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -249,7 +250,7 @@ select {
 }
 
 .hero p {
-  color: var(--muted);
+  color: var(--text-muted);
   max-width: 52ch;
   font-size: 1.05rem;
   line-height: 1.5;
@@ -286,7 +287,7 @@ select {
 }
 
 .drop p {
-  color: var(--muted);
+  color: var(--text-muted);
   margin: 8px 0 0;
 }
 
@@ -350,7 +351,7 @@ textarea {
   place-items: center;
   background: transparent;
   border-color: var(--line);
-  color: var(--muted);
+  color: var(--text-muted);
   flex: 0 0 auto;
 }
 
@@ -375,7 +376,7 @@ textarea {
   display: block;
   font-size: 0.82rem;
   margin-bottom: 6px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .persona-row {
@@ -428,7 +429,7 @@ textarea {
 
 .dialog-card p {
   margin: 0 0 10px;
-  color: var(--muted);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -447,7 +448,7 @@ textarea {
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -634,7 +635,7 @@ textarea {
 
 .finding p {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -667,7 +668,7 @@ textarea {
 
 .line-ref {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -678,7 +679,7 @@ textarea {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
@@ -689,7 +690,7 @@ textarea {
 }
 
 .empty {
-  color: var(--muted);
+  color: var(--text-muted);
   padding: 12px 4px 8px;
 }
 

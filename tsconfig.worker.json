@@ -23,6 +23,8 @@
     "test/mcp-cli.test.ts",
     "test/mcp-skill.test.ts",
     "test/**/*.test.tsx",
-    "test/setup-dom.ts"
+    "test/setup-dom.ts",
+    "test/design-tokens.test.ts",
+    "test/site-app-lazy.test.ts"
   ]
 }

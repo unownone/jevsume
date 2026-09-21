@@ -5,8 +5,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { agentsCopy } from "@/lib/site-copy.ts";
-import { AGENTS_PATH, DOCS_MCP_LOCAL, GITHUB_REPO_URL, MCP_PATH } from "@/lib/site-links.ts";
+import { AGENTS_PATH, DOCS_MCP_LOCAL_URL, MCP_PATH } from "@/lib/site-links.ts";
 import { sitePath } from "@/lib/routes.ts";
+import type { McpClientId } from "@/lib/mcp-snippets.ts";
+
+const CLIENT_TABS: { id: McpClientId; label: string }[] = [
+  { id: "cursor", label: "Cursor" },
+  { id: "claude", label: "Claude Desktop" },
+  { id: "claude-code", label: "Claude Code" },
+  { id: "codex", label: "Codex CLI" },
+  { id: "codex-chat", label: "Codex Chat" },
+  { id: "generic", label: "Generic" },
+];
 
 export default function AgentsPage() {
   return (
@@ -21,7 +31,8 @@ export default function AgentsPage() {
         <Alert>
           <AlertTitle>{agentsCopy.hostedTitle}</AlertTitle>
           <AlertDescription>
-            {agentsCopy.hostedBody} Endpoint path: <code className="rounded bg-muted px-1">{MCP_PATH}</code>
+            {agentsCopy.hostedBody} Endpoint path: <code className="rounded bg-muted px-1">{MCP_PATH}</code> (Worker
+            HTTP — not this page).
           </AlertDescription>
         </Alert>
 
@@ -38,15 +49,15 @@ export default function AgentsPage() {
           <CardContent>
             <Tabs defaultValue="cursor">
               <TabsList className="flex h-auto flex-wrap">
-                <TabsTrigger value="cursor">Cursor</TabsTrigger>
-                <TabsTrigger value="claude">Claude</TabsTrigger>
-                <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
-                <TabsTrigger value="codex">Codex</TabsTrigger>
-                <TabsTrigger value="generic">Generic</TabsTrigger>
+                {CLIENT_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
-              {(["cursor", "claude", "claude-code", "codex", "generic"] as const).map((client) => (
-                <TabsContent key={client} value={client} className="mt-4">
-                  <McpSetupSnippet client={client} />
+              {CLIENT_TABS.map((tab) => (
+                <TabsContent key={tab.id} value={tab.id} className="mt-4">
+                  <McpSetupSnippet client={tab.id} />
                 </TabsContent>
               ))}
             </Tabs>
@@ -58,12 +69,13 @@ export default function AgentsPage() {
           <p>{agentsCopy.privacyBody}</p>
           <p>
             Full local instructions:{" "}
-            <a className="text-primary underline-offset-4 hover:underline" href={DOCS_MCP_LOCAL}>
-              docs/mcp-local.md
-            </a>{" "}
-            in the{" "}
-            <a className="text-primary underline-offset-4 hover:underline" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
-              jevsume repository
+            <a
+              className="text-primary underline-offset-4 hover:underline"
+              href={DOCS_MCP_LOCAL_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              docs/mcp-local.md on GitHub
             </a>
             . Prefer the browser studio?{" "}
             <Link className="text-primary underline-offset-4 hover:underline" to={sitePath("review")}>

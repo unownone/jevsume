@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { metadataForRoute } from "../src/lib/site-metadata.ts";
+import { landingCopy } from "../src/lib/site-copy.ts";
 import LandingPage from "../src/pages/LandingPage.tsx";
 
 describe("landing page UAT", () => {
@@ -26,5 +27,10 @@ describe("page metadata", () => {
     expect(metadataForRoute("landing").title).toMatch(/Pro-sume/);
     expect(metadataForRoute("agents").title).toMatch(/MCP/);
     expect(metadataForRoute("review").title).toMatch(/Review studio/);
+  });
+
+  it("does not promise fixed review speed or total cost on the landing page", () => {
+    expect(landingCopy.proofBody).not.toMatch(/under a second/i);
+    expect(landingCopy.proofBody).not.toMatch(/\$0\.042/);
   });
 });
