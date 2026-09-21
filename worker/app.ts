@@ -25,6 +25,8 @@ import {
   writeWebsiteEvent,
 } from "./analytics.ts";
 import type { WebsiteEventType } from "../shared/events.ts";
+import { handleMcpHttp } from "../mcp/http.ts";
+import type { McpReviewOutcome, McpToolRuntime } from "../mcp/tools.ts";
 
 export type AppEnv = {
   Bindings: CloudflareBindings;
@@ -259,6 +261,39 @@ function assertRateLimit(c: Context<AppEnv>, checkpoint: RateLimitCheckpoint): v
   }
 }
 
+function createMcpRuntime(c: Context<AppEnv>): McpToolRuntime {
+  return {
+    async review(input): Promise<McpReviewOutcome> {
+      try {
+        assertRateLimit(c, "resumeReview");
+        assertResumeSize(input.resumeText, "resume text");
+        if (input.jobTarget?.jobText) {
+          assertResumeSize(input.jobTarget.jobText, "job text");
+        }
+        const review = await c.get("engine").review(input.resumeText, input.jobLensId, {
+          source: "mcp",
+          jobTarget: input.jobTarget,
+        });
+        if ("error" in review) {
+          return { ok: false, error: "Unknown job lens" };
+        }
+        return { ok: true, review };
+      } catch (caught) {
+        if (caught instanceof RateLimitedError) {
+          return { ok: false, error: caught.message, status: 429, rateLimit: rateLimitBody(caught) };
+        }
+        if (caught instanceof HTTPException) {
+          return { ok: false, error: caught.message, status: caught.status };
+        }
+        if (isTypeSafeHttpError(caught)) {
+          return { ok: false, error: caught.message, status: 502 };
+        }
+        throw caught;
+      }
+    },
+  };
+}
+
 function rateLimitBody(err: RateLimitedError): RateLimitErrorBody {
   const config = RATE_LIMIT_CHECKPOINTS[err.decision.checkpoint];
   return {
@@ -287,22 +322,22 @@ function readWebsiteEvent(body: Record<string, unknown>): {
   return { type, page };
 }
 
+const MCP_CORS = cors({
+  origin: "*",
+  allowHeaders: ["Content-Type", "Accept", "Mcp-Session-Id", "MCP-Protocol-Version", "Last-Event-ID"],
+  allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+  exposeHeaders: ["Mcp-Session-Id", "MCP-Protocol-Version"],
+  maxAge: 86400,
+});
+
 export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   const rateLimiter = options.rateLimiter ?? new MemoryRateLimiter();
   app.use("/api/*", cors());
+  app.use("/mcp", MCP_CORS);
   let memoryVisitors: MemoryVisitorStore | undefined;
 
-  app.use("/api/*", async (c, next) => {
-    writeWebsiteEvent(c.env?.ANALYTICS, {
-      type: "pageview",
-      page: c.req.path,
-      country: requestCountry(c.req.raw),
-    });
-    await next();
-  });
-
-  app.use("/api/*", async (c, next) => {
+  async function attachRuntime(c: Context<AppEnv>, next: () => Promise<void>): Promise<void> {
     if (options.engine) {
       c.set("engine", options.engine);
       if (options.visitors) {
@@ -318,7 +353,19 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     }
     c.set("rateLimiter", rateLimiter);
     await next();
+  }
+
+  app.use("/api/*", async (c, next) => {
+    writeWebsiteEvent(c.env?.ANALYTICS, {
+      type: "pageview",
+      page: c.req.path,
+      country: requestCountry(c.req.raw),
+    });
+    await next();
   });
+
+  app.use("/api/*", attachRuntime);
+  app.use("/mcp", attachRuntime);
 
   app.onError((err, c) => {
     if (err instanceof RateLimitedError) {
@@ -599,6 +646,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
     }
     return c.json(run);
   });
+
+  app.all("/mcp", (c) => handleMcpHttp(c.req.raw, createMcpRuntime(c)));
 
   return app;
 }

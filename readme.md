@@ -9,6 +9,53 @@ Two modes:
 
 Jev does not generate prose. Scores, verdicts, and probabilities come from System One; the Worker turns them into UI copy.
 
+## MCP + Agent Skill
+
+Any MCP client can run the same Jev review without the studio UI. Tools return compact JSON (score, findings, suggestions, gaps) — not the full review payload.
+
+### Hosted (no API key)
+
+Streamable HTTP at **`/mcp`** on the Worker. No auth yet (OAuth can wrap this later). `review_resume` shares the platform IP rate limit (10 / minute) with `POST /api/reviews`.
+
+With `pnpm dev`, the endpoint is `http://localhost:5173/mcp`. After deploy, it is `https://<your-worker>/mcp` on the same host as the app.
+
+```json
+{
+  "mcpServers": {
+    "jevsume": {
+      "url": "http://localhost:5173/mcp"
+    }
+  }
+}
+```
+
+### Local npx (your TypeSafe key)
+
+Runs Jev with **your** key. Does not use the hosted rate limit.
+
+**Setup for Claude, Claude Code, Codex, Codex Chat, and Cursor:** [`docs/mcp-local.md`](docs/mcp-local.md).
+
+```bash
+npx -y github:unownone/jevsume -- --api-key $TYPESAFE_API_KEY
+```
+
+From a clone: `pnpm mcp -- --api-key $TYPESAFE_API_KEY`. `--mock` uses the deterministic provider (tests/dev only).
+
+### Tools
+
+| Tool | Use |
+| --- | --- |
+| `list_job_lenses` | Baked-in catalog (`default` + presets). Optional `track` / `query`. Ids, titles, tags, blurb — no job text. |
+| `get_job_lens` | Full listing by id. Call only when you must quote the JD. |
+| `suggest_job_lens` | One lens id from `resumeText`. |
+| `review_resume` | `resumeText` plus optional `jobLensId` and/or `jobText` / `jobTitle` / `company` / `jobUrl`. |
+
+`jobLensId` accepts `default`, a preset id (`swe-staff`), or `preset:swe-staff`. Pasted `jobText` wins over a lens id. Never send PDF bytes — extract text first.
+
+### Skill
+
+[`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md) — pick a lens, review, rewrite the weak bullets, re-review. Do not invent Jev scores.
+
 ## Stack
 
 - React + Vite SPA via [`@cloudflare/vite-plugin`](https://developers.cloudflare.com/workers/vite-plugin/)
@@ -50,7 +97,7 @@ npx wrangler deploy
 
 Git deploys (Workers Builds) auto-provision the D1 database named `jevsume` because `database_id` is omitted. Apply migrations once after the first successful deploy.
 
-`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), a KV binding `VISITORS` for the visitor counter, and an Analytics Engine dataset `website_events` (`ANALYTICS`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
+`wrangler.jsonc` uses Workers static assets + SPA fallback, `run_worker_first: ["/api/*", "/mcp"]`, `compatibility_date: 2026-09-17`, `nodejs_compat`, observability, a D1 binding `DB` (`jevsume`), a KV binding `VISITORS` for the visitor counter, and an Analytics Engine dataset `website_events` (`ANALYTICS`). Schema lives in [`migrations/0001_init.sql`](migrations/0001_init.sql).
 
 Website events are fire-and-forget `writeDataPoint()` calls. Each point is `blobs: [event_type, page, country]`, `doubles: [1]`, `indexes: [event_id]`. The Worker records a `pageview` for every `/api/*` request and accepts client events at `POST /api/events` (`pageview` on load, `click` on review / upload / demo / persona). Query with the Analytics Engine SQL API against `website_events`.
 
@@ -75,3 +122,5 @@ Official TypeSafe env name is `TYPESAFE_API_KEY` ([SDK ENV](https://docs.typesaf
 - Research: [`docs/research/2026-09-17-jev-typesafe-resume-review.md`](docs/research/2026-09-17-jev-typesafe-resume-review.md)
 - Design: [`docs/superpowers/specs/2026-09-17-jevsume-design.md`](docs/superpowers/specs/2026-09-17-jevsume-design.md)
 - Plan: [`docs/superpowers/plans/2026-09-17-jevsume-plan.md`](docs/superpowers/plans/2026-09-17-jevsume-plan.md)
+- MCP skill: [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md)
+- Local MCP (npx): [`docs/mcp-local.md`](docs/mcp-local.md)
