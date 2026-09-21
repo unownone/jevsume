@@ -17,5 +17,12 @@
     "types": ["./worker-configuration.d.ts"]
   },
   "include": ["worker", "packages/jev", "test", "shared", "mcp"],
-  "exclude": ["mcp/cli.ts", "mcp/stdio.ts", "test/mcp-cli.test.ts", "test/mcp-skill.test.ts"]
+  "exclude": [
+    "mcp/cli.ts",
+    "mcp/stdio.ts",
+    "test/mcp-cli.test.ts",
+    "test/mcp-skill.test.ts",
+    "test/**/*.test.tsx",
+    "test/setup-dom.ts"
+  ]
 }
