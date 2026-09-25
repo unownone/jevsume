@@ -29,7 +29,7 @@ Never pass PDFs. Extract text first. Never echo the full resume or JD back into 
 
 1. If the user pasted a job, `review_resume` with `jobText` (and title/company if known).
 2. Else `suggest_job_lens` or `list_job_lenses`, then `review_resume` with `jobLensId` (`default`, `swe-staff`, or `preset:swe-staff`).
-3. Read compact JSON: `score`, `validity`, `evidence`, `findings`, `suggestions`, `gaps`.
+3. Read compact JSON: `conformityScore`, `jobMatchScore` (null without a listing), `comparison` (expected, good to have, validated lines, missing, available, skill gap), plus `findings`, `suggestions`, and `gaps`.
 4. Rewrite **only** the weak bullets. Keep numbers. Do not invent Jev scores.
 5. `review_resume` again. Stop when the user is done or remaining gaps are intentional.
 

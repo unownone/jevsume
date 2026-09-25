@@ -117,7 +117,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   {
     name: "review_resume",
     description:
-      "Score a resume with Jev. Pass jobLensId and/or jobText. Returns compact scores, findings, suggestions, gaps.",
+      "Score a resume with Jev. Returns conformityScore and, when a job is attached, jobMatchScore plus expected, good-to-have, missing, available, and skill-gap sections.",
     inputSchema: {
       type: "object",
       properties: {

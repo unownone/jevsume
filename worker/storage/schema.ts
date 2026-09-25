@@ -25,8 +25,10 @@ export const D1_SCHEMA_STATEMENTS = [
   tags_json TEXT NOT NULL,
   job_description TEXT NOT NULL,
   requirements_json TEXT NOT NULL,
+  sections_json TEXT NOT NULL DEFAULT '{"expected":[],"goodToHave":[],"skills":[]}',
   created_at TEXT NOT NULL
 ) STRICT`,
+  `ALTER TABLE personas ADD COLUMN sections_json TEXT NOT NULL DEFAULT '{"expected":[],"goodToHave":[],"skills":[]}'`,
   `CREATE INDEX IF NOT EXISTS idx_personas_created_at ON personas(created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_personas_title ON personas(title)`,
   `CREATE TABLE IF NOT EXISTS persona_tags (
@@ -75,7 +77,14 @@ export async function ensureD1Schema(db: D1Database): Promise<void> {
     return;
   }
   for (const sql of D1_SCHEMA_STATEMENTS) {
-    await db.prepare(sql).run();
+    try {
+      await db.prepare(sql).run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/duplicate column/i.test(message)) {
+        throw error;
+      }
+    }
   }
   prepared.add(db);
 }

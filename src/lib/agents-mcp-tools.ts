@@ -18,7 +18,7 @@ export const AGENTS_MCP_TOOLS = [
   {
     name: "review_resume",
     description:
-      "Score a resume with Jev. Pass jobLensId and/or job fields. Returns compact scores, findings, suggestions, gaps.",
+      "Score a resume with Jev. Returns conformity and job-match scores, plus expected, good-to-have, missing, available, and skill-gap sections.",
     args: "resumeText, jobLensId?, jobText?, jobTitle?, company?, jobUrl?",
   },
 ] as const;

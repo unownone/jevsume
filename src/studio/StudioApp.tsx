@@ -354,6 +354,16 @@ export default function StudioApp() {
         if (type === "complete" && event.review && typeof event.review === "object") {
           const review = event.review as {
             jevScore?: { value?: number };
+            conformityScore?: { value?: number };
+            jobMatchScore?: { value?: number } | null;
+            jobComparison?: {
+              expected: string[];
+              goodToHave: string[];
+              missingSkills: string[];
+              availableSkills: string[];
+              skillGap: Array<{ name: string }>;
+              skillsValidated: Array<{ name: string }>;
+            };
             validity?: number;
             evidence?: number;
             suggestions?: Array<{ id?: string; text?: string; recoverPoints?: number; span?: { start: number; end: number } }>;
@@ -365,6 +375,18 @@ export default function StudioApp() {
           setLiveScore((current) =>
             mergeLiveScore(current, {
               value: review.jevScore?.value ?? current?.value ?? 0,
+              conformity: review.conformityScore?.value ?? review.jevScore?.value ?? current?.conformity,
+              jobMatch: review.jobMatchScore?.value ?? null,
+              comparison: review.jobComparison
+                ? {
+                    expected: review.jobComparison.expected,
+                    goodToHave: review.jobComparison.goodToHave,
+                    missingSkills: review.jobComparison.missingSkills,
+                    availableSkills: review.jobComparison.availableSkills,
+                    skillGap: review.jobComparison.skillGap.map((skill) => skill.name),
+                    skillsValidated: review.jobComparison.skillsValidated.map((skill) => skill.name),
+                  }
+                : current?.comparison,
               validity: typeof review.validity === "number" ? review.validity : pair.validity || current?.validity || 0,
               evidence: typeof review.evidence === "number" ? review.evidence : pair.evidence || current?.evidence || 0,
               hierarchy: review.hierarchy ?? current?.hierarchy,

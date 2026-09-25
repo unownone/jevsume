@@ -27,6 +27,25 @@ export type ReviewResponse = {
     breakdown: { key: string; score01: number; weight: number }[];
     confidence: number | null;
   };
+  conformityScore?: {
+    value: number;
+    breakdown: { key: string; score01: number; weight: number }[];
+    confidence: number | null;
+  };
+  jobMatchScore?: {
+    value: number;
+    breakdown: { key: string; score01: number; weight: number }[];
+    confidence: number | null;
+  } | null;
+  jobComparison?: {
+    expected: string[];
+    goodToHave: string[];
+    missingSkills: string[];
+    availableSkills: string[];
+    skillGap: { name: string; alignment: string; source: string; resumeLine?: string }[];
+    skillsValidated: { name: string; alignment: string; source: string; resumeLine?: string }[];
+    otherExperiences: { name: string; alignment: string; source: string; resumeLine?: string }[];
+  };
   validity?: number;
   evidence?: number;
   dimensions: {

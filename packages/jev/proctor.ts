@@ -1,4 +1,5 @@
 import { validityEvidenceFromTree } from "../../shared/score-pair.ts";
+import { compareResumeToJob, jobMatchScoreValue, sectionsFromRequirements } from "./job-sections.ts";
 import { fallbackSpan } from "./anchors.ts";
 import { DEFAULT_PERSONA } from "./default-persona.ts";
 import { kindLabel, sectionsFromTree } from "./hierarchy.ts";
@@ -241,17 +242,40 @@ export function buildProctorReview(input: {
             span: fallbackSpan(sections),
           },
         ];
+  const conformityScore = {
+    value: overall,
+    breakdown: roots.map((root) => ({
+      key: root.id,
+      score01: root.score01 ?? 0,
+      weight: (root.weight ?? 0) / 100,
+    })),
+    confidence: null,
+  };
+  const stored = input.persona
+    ? (input.persona.sections ?? sectionsFromRequirements(input.persona.jobDescription, input.persona.requirements))
+    : null;
+  const jobComparison = stored
+    ? compareResumeToJob({ text: input.resumeText, sections }, stored)
+    : undefined;
+  const jobMatchScore = jobComparison
+    ? {
+        value: jobMatchScoreValue(jobComparison),
+        breakdown: [
+          {
+            key: "job_match",
+            score01: jobMatchScoreValue(jobComparison) / 100,
+            weight: 1,
+          },
+        ],
+        confidence: null,
+      }
+    : null;
   return {
     mode: input.mode,
-    jevScore: {
-      value: overall,
-      breakdown: roots.map((root) => ({
-        key: root.id,
-        score01: root.score01 ?? 0,
-        weight: (root.weight ?? 0) / 100,
-      })),
-      confidence: null,
-    },
+    jevScore: conformityScore,
+    conformityScore,
+    jobMatchScore,
+    ...(jobComparison ? { jobComparison } : {}),
     validity: pair.validity,
     evidence: pair.evidence,
     dimensions: dimensionsFromRoots(roots),

@@ -17,6 +17,7 @@ import {
   nodeWeightForScoring,
   personaBlurb,
   requirementsFromPersonaAnswers,
+  sectionsFromRequirements,
   replaceNode,
   rollUpParents,
   scoreHierarchyNode,
@@ -149,17 +150,19 @@ function personaFromJobTarget(input: JobTarget, id = JOB_TARGET_PERSONA_ID, tags
   const jobDescription = composeJobDescription(target);
   const title = target.jobTitle || jobTargetLabel(target);
   const lines = extractRequirementCandidates(jobDescription);
+  const requirements = lines.map((text, index) => ({
+    id: `r${index + 1}`,
+    text,
+    category: "must_have" as const,
+    noul: 0.7,
+  }));
   return {
     id,
     title,
     tags: tags ?? (target.company ? [target.company] : []),
     jobDescription,
-    requirements: lines.map((text, index) => ({
-      id: `r${index + 1}`,
-      text,
-      category: "must_have" as const,
-      noul: 0.7,
-    })),
+    requirements,
+    sections: sectionsFromRequirements(jobDescription, requirements),
     createdAt: new Date().toISOString(),
   };
 }
@@ -275,6 +278,7 @@ export class ReviewEngine {
       tags,
       jobDescription: input.jobDescription,
       requirements,
+      sections: sectionsFromRequirements(input.jobDescription, requirements),
       createdAt: new Date().toISOString(),
     };
     await this.stores.personas.put(persona);
