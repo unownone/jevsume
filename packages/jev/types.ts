@@ -1,3 +1,5 @@
+import type { JobComparison, JobDescriptionSections } from "./job-sections.ts";
+
 export type JsonValue =
   | string
   | number
@@ -162,6 +164,8 @@ export type JobPersona = {
   tags: string[];
   jobDescription: string;
   requirements: PersonaRequirement[];
+  /** Parsed listing sections stored with the persona. */
+  sections?: JobDescriptionSections;
   createdAt: string;
 };
 
@@ -244,6 +248,11 @@ export type ReviewTelemetry = {
 export type ReviewResponse = {
   mode: "general" | "job";
   jevScore: JevScore;
+  /** Resume quality independent of a listing: wording, structure, metrics, ATS parse. */
+  conformityScore: JevScore;
+  /** Fit against the stored job sections. Null on a general review. */
+  jobMatchScore: JevScore | null;
+  jobComparison?: JobComparison;
   /** Parser/ATS readability 0–100. */
   validity: number;
   /** Numbered or named claims 0–100. */

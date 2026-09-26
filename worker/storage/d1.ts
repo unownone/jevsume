@@ -1,3 +1,4 @@
+import { parseStoredSections } from "../../packages/jev/job-sections.ts";
 import type { JobPersona, ProviderId } from "../../packages/jev/types.ts";
 import { assertNever } from "../../packages/jev/types.ts";
 import { clampLimit } from "./limits.ts";
@@ -31,6 +32,7 @@ type PersonaRow = {
   tags_json: string;
   job_description: string;
   requirements_json: string;
+  sections_json?: string | null;
   created_at: string;
 };
 
@@ -78,6 +80,7 @@ function personaFromRow(row: PersonaRow): JobPersona {
     tags: JSON.parse(row.tags_json) as string[],
     jobDescription: row.job_description,
     requirements: JSON.parse(row.requirements_json) as JobPersona["requirements"],
+    sections: parseStoredSections(row.sections_json),
     createdAt: row.created_at,
   };
 }
@@ -198,8 +201,8 @@ export class D1PersonaStore implements PersonaStore {
     const statements = [
       this.db
         .prepare(
-          `INSERT INTO personas (id, title, tags_json, job_description, requirements_json, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO personas (id, title, tags_json, job_description, requirements_json, sections_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           persona.id,
@@ -207,6 +210,7 @@ export class D1PersonaStore implements PersonaStore {
           JSON.stringify(persona.tags),
           persona.jobDescription,
           JSON.stringify(persona.requirements),
+          JSON.stringify(persona.sections ?? { expected: [], goodToHave: [], skills: [] }),
           persona.createdAt,
         ),
     ];
@@ -224,7 +228,7 @@ export class D1PersonaStore implements PersonaStore {
   async get(id: string): Promise<JobPersona | null> {
     const row = await this.db
       .prepare(
-        `SELECT id, title, tags_json, job_description, requirements_json, created_at
+        `SELECT id, title, tags_json, job_description, requirements_json, sections_json, created_at
          FROM personas WHERE id = ?`,
       )
       .bind(id)
@@ -251,7 +255,7 @@ export class D1PersonaStore implements PersonaStore {
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     const result = await this.db
       .prepare(
-        `SELECT id, title, tags_json, job_description, requirements_json, created_at
+        `SELECT id, title, tags_json, job_description, requirements_json, sections_json, created_at
          FROM personas ${where}
          ORDER BY created_at DESC
          LIMIT ?`,

@@ -359,16 +359,56 @@ export default function App({ embedded = false }: { embedded?: boolean }) {
               <div className="review-head">
                 <div className="orb-wrap">
                   <div className={`orb ${tone}`}>
-                    <strong>{formatJevScore(review.jevScore.value)}</strong>
+                    <strong>{formatJevScore(review.conformityScore?.value ?? review.jevScore.value)}</strong>
                   </div>
                 </div>
                 <div>
                   <h2>{review.persona.title}</h2>
                   <p className="muted">
+                    Conformity {formatJevScore(review.conformityScore?.value ?? review.jevScore.value)}
+                    {review.jobMatchScore
+                      ? ` · Job match ${formatJevScore(review.jobMatchScore.value)}`
+                      : ""}
+                  </p>
+                  <p className="muted">
                     Click a note, or a marked line. Each one points at the other.
                   </p>
                 </div>
               </div>
+              {review.jobComparison ? (
+                <dl className="bars">
+                  <div className="bar">
+                    <label>
+                      <span>Expected</span>
+                      <span>{review.jobComparison.expected.length}</span>
+                    </label>
+                  </div>
+                  <div className="bar">
+                    <label>
+                      <span>Good to have</span>
+                      <span>{review.jobComparison.goodToHave.length}</span>
+                    </label>
+                  </div>
+                  <div className="bar">
+                    <label>
+                      <span>Missing skills</span>
+                      <span>{review.jobComparison.missingSkills.join(", ") || "None"}</span>
+                    </label>
+                  </div>
+                  <div className="bar">
+                    <label>
+                      <span>Available skills</span>
+                      <span>{review.jobComparison.availableSkills.join(", ") || "None listed"}</span>
+                    </label>
+                  </div>
+                  <div className="bar">
+                    <label>
+                      <span>Skill gap</span>
+                      <span>{review.jobComparison.skillGap.map((skill) => skill.name).join(", ") || "None"}</span>
+                    </label>
+                  </div>
+                </dl>
+              ) : null}
               <div className="bars">
                 {review.dimensions.map((dimension) => (
                   <div className="bar" key={dimension.id}>

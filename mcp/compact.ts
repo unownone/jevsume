@@ -45,8 +45,27 @@ export type CompactGap = {
   verdict: string;
 };
 
+export type CompactSkill = {
+  name: string;
+  alignment: string;
+  source: string;
+  resumeLine?: string;
+};
+
+export type CompactComparison = {
+  expected: string[];
+  goodToHave: string[];
+  missingSkills: string[];
+  availableSkills: string[];
+  skillGap: CompactSkill[];
+  skillsValidated: CompactSkill[];
+  otherExperiences: CompactSkill[];
+};
+
 export type CompactReview = {
   score: number;
+  conformityScore: number;
+  jobMatchScore: number | null;
   validity: number;
   evidence: number;
   mode: ReviewResponse["mode"];
@@ -54,6 +73,7 @@ export type CompactReview = {
   findings: CompactFinding[];
   suggestions: CompactSuggestion[];
   gaps: CompactGap[];
+  comparison?: CompactComparison;
 };
 
 function severityRank(severity: FindingSeverity): number {
@@ -107,8 +127,36 @@ export function compactReview(review: ReviewResponse): CompactReview {
     const gap = compactGap(item);
     return gap ? [gap] : [];
   });
+  const comparison = review.jobComparison
+    ? {
+        expected: review.jobComparison.expected,
+        goodToHave: review.jobComparison.goodToHave,
+        missingSkills: review.jobComparison.missingSkills,
+        availableSkills: review.jobComparison.availableSkills,
+        skillGap: review.jobComparison.skillGap.map((skill) => ({
+          name: skill.name,
+          alignment: skill.alignment,
+          source: skill.source,
+          ...(skill.resumeLine ? { resumeLine: skill.resumeLine } : {}),
+        })),
+        skillsValidated: review.jobComparison.skillsValidated.map((skill) => ({
+          name: skill.name,
+          alignment: skill.alignment,
+          source: skill.source,
+          ...(skill.resumeLine ? { resumeLine: skill.resumeLine } : {}),
+        })),
+        otherExperiences: review.jobComparison.otherExperiences.map((skill) => ({
+          name: skill.name,
+          alignment: skill.alignment,
+          source: skill.source,
+          ...(skill.resumeLine ? { resumeLine: skill.resumeLine } : {}),
+        })),
+      }
+    : undefined;
   return {
     score: review.jevScore.value,
+    conformityScore: review.conformityScore?.value ?? review.jevScore.value,
+    jobMatchScore: review.jobMatchScore?.value ?? null,
     validity: review.validity,
     evidence: review.evidence,
     mode: review.mode,
@@ -116,6 +164,7 @@ export function compactReview(review: ReviewResponse): CompactReview {
     findings: selected.map(compactFinding),
     suggestions,
     gaps,
+    ...(comparison ? { comparison } : {}),
   };
 }
 

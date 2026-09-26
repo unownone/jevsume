@@ -16,6 +16,8 @@ type ScorePanelProps = {
 export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProps) {
   const tone = scoreTone(score.value);
   const shown = useAnimatedScore(score.value);
+  const conformityShown = useAnimatedScore(score.conformity ?? score.value);
+  const jobMatchShown = useAnimatedScore(score.jobMatch ?? 0);
   const validityShown = useAnimatedScore(score.validity);
   const evidenceShown = useAnimatedScore(score.evidence);
 
@@ -40,6 +42,16 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
       </div>
       <div className="score-pair">
         <div>
+          <strong>{formatJevScore(conformityShown)}</strong>
+          <span>Conformity</span>
+        </div>
+        <div>
+          <strong>{score.jobMatch == null ? "—" : formatJevScore(jobMatchShown)}</strong>
+          <span>Job match</span>
+        </div>
+      </div>
+      <div className="score-pair">
+        <div>
           <strong>{formatJevScore(validityShown)}</strong>
           <span>Validity</span>
         </div>
@@ -48,6 +60,34 @@ export function ScorePanel({ score, selected, onToggle, onOpen }: ScorePanelProp
           <span>Evidence</span>
         </div>
       </div>
+      {score.comparison ? (
+        <dl className="judge-lines">
+          <div>
+            <dt>Expected</dt>
+            <dd>{score.comparison.expected.slice(0, 3).join(" · ") || "None parsed"}</dd>
+          </div>
+          <div>
+            <dt>Good to have</dt>
+            <dd>{score.comparison.goodToHave.slice(0, 3).join(" · ") || "None parsed"}</dd>
+          </div>
+          <div>
+            <dt>Validated</dt>
+            <dd>{score.comparison.skillsValidated.slice(0, 4).join(", ") || "None on the page"}</dd>
+          </div>
+          <div>
+            <dt>Missing</dt>
+            <dd>{score.comparison.missingSkills.slice(0, 4).join(", ") || "None"}</dd>
+          </div>
+          <div>
+            <dt>Available</dt>
+            <dd>{score.comparison.availableSkills.slice(0, 4).join(", ") || "None listed"}</dd>
+          </div>
+          <div>
+            <dt>Skill gap</dt>
+            <dd>{score.comparison.skillGap.slice(0, 4).join(", ") || "None"}</dd>
+          </div>
+        </dl>
+      ) : null}
       {score.telemetry ? (
         <p className="score-cost" aria-label="Jev token cost">
           This review burned {formatTokenCount(score.telemetry.totalTokens)} tokens (

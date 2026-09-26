@@ -6,6 +6,8 @@ function sampleReview(overrides: Partial<ReviewResponse> = {}): ReviewResponse {
   return {
     mode: "job",
     jevScore: { value: 71, breakdown: [{ key: "experience", score01: 0.7, weight: 1 }], confidence: null },
+    conformityScore: { value: 71, breakdown: [{ key: "experience", score01: 0.7, weight: 1 }], confidence: null },
+    jobMatchScore: { value: 64, breakdown: [{ key: "job_match", score01: 0.64, weight: 1 }], confidence: null },
     validity: 80,
     evidence: 62,
     dimensions: [{ id: "experience", label: "Experience", score: 40, max: 50 }],
@@ -83,6 +85,8 @@ describe("compactReview", () => {
     expect(encoded).not.toContain("secret resume blob");
     expect(encoded).not.toContain("inputTokens");
     expect(compact.score).toBe(71);
+    expect(compact.conformityScore).toBe(71);
+    expect(compact.jobMatchScore).toBe(64);
     expect(compact.validity).toBe(80);
     expect(compact.evidence).toBe(62);
     expect(compact.mode).toBe("job");

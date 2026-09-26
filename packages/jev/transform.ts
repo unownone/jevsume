@@ -7,9 +7,11 @@ import {
 } from "./anchors.ts";
 import { DEFAULT_PERSONA } from "./default-persona.ts";
 import { PERSONA_NOUL_KEEP_THRESHOLD } from "./questions.ts";
+import { compareResumeToJob, jobMatchScoreValue, sectionsFromRequirements } from "./job-sections.ts";
 import { GENERAL_WEIGHTS, JOB_SCORE_WEIGHTS, toJevScore } from "./score.ts";
 import type {
   Answer,
+  JevScore,
   ChoiceAnswer,
   FindingSeverity,
   JobPersona,
@@ -357,6 +359,20 @@ function coerceCategory(choice: string): RequirementCategory {
   }
 }
 
+function jobMatchScore(value: number): JevScore {
+  const score01 = Math.min(1, Math.max(0, value / 100));
+  return {
+    value,
+    breakdown: [{ key: "job_match", score01, weight: 1 }],
+    confidence: null,
+  };
+}
+
+function comparisonFor(persona: JobPersona, sections: ResumeSection[], resumeText: string) {
+  const stored = persona.sections ?? sectionsFromRequirements(persona.jobDescription, persona.requirements);
+  return compareResumeToJob({ text: resumeText, sections }, stored);
+}
+
 function coerceVerdict(choice: string): RequirementVerdict {
   switch (choice) {
     case "works":
@@ -473,6 +489,8 @@ export function transformGeneralReview(input: {
   return {
     mode: "general",
     jevScore,
+    conformityScore: jevScore,
+    jobMatchScore: null,
     validity: pairFromAnswers(answers).validity,
     evidence: pairFromAnswers(answers).evidence,
     dimensions,
@@ -531,6 +549,10 @@ export function transformJobReview(input: {
       : coveragePool.reduce((sum, req) => sum + req.noul, 0) / coveragePool.length;
 
   const jevScore = toJevScore(JOB_SCORE_WEIGHTS, scores, coverage01, 0.25);
+  const conformityScore = toJevScore(GENERAL_WEIGHTS, pickScores(answers, Object.keys(GENERAL_WEIGHTS)), null, 0);
+  const resumeText = input.resumeText ?? sections.map((section) => section.text).join("\n");
+  const jobComparison = comparisonFor(input.persona, sections, resumeText);
+  const match = jobMatchScore(jobMatchScoreValue(jobComparison));
   const findings: ReviewFinding[] = [];
   const suggestions: ReviewSuggestion[] = [...generalSuggestions(answers, sections)];
 
@@ -587,6 +609,9 @@ export function transformJobReview(input: {
   return {
     mode: "job",
     jevScore,
+    conformityScore,
+    jobMatchScore: match,
+    jobComparison,
     validity: pairFromAnswers(answers).validity,
     evidence: pairFromAnswers(answers).evidence,
     dimensions: dimensionList(answers, [
@@ -601,7 +626,7 @@ export function transformJobReview(input: {
     suggestions,
     provider: input.provider,
     model,
-    resumeText: input.resumeText ?? sections.map((section) => section.text).join("\n"),
+    resumeText,
     persona: {
       id: input.persona.id,
       title: input.persona.title,

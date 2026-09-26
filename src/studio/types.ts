@@ -49,8 +49,20 @@ export type ScoreDimension = {
   max: number;
 };
 
+export type StudioComparison = {
+  expected: string[];
+  goodToHave: string[];
+  missingSkills: string[];
+  availableSkills: string[];
+  skillGap: string[];
+  skillsValidated: string[];
+};
+
 export type StudioScore = {
   value: number;
+  conformity?: number;
+  jobMatch?: number | null;
+  comparison?: StudioComparison;
   verdict: string;
   noteCount: number;
   /** Parser/ATS readability. Not a claim that the resume is true. */
