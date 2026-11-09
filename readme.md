@@ -56,6 +56,8 @@ From a clone: `pnpm mcp -- --api-key $TYPESAFE_API_KEY`. `--mock` uses the deter
 
 [`skills/jevsume-resume/SKILL.md`](skills/jevsume-resume/SKILL.md) — pick a lens, review, rewrite the weak bullets, re-review. Do not invent Jev scores.
 
+`pnpm skill:pack` writes `dist/jevsume-resume.zip`, a standalone copy for skill marketplaces. Listing copy and the pre-submit checklist live in [`docs/agensi-listing.md`](docs/agensi-listing.md).
+
 ## Stack
 
 - React + Vite SPA via [`@cloudflare/vite-plugin`](https://developers.cloudflare.com/workers/vite-plugin/)

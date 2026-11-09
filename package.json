@@ -25,6 +25,7 @@
     "db:migrate:local": "wrangler d1 migrations apply jevsume --local",
     "mcp:build": "node scripts/build-mcp.mjs",
     "mcp": "pnpm mcp:build && node dist/jevsume-mcp.mjs",
+    "skill:pack": "node scripts/pack-skill.mjs",
     "prepare": "node scripts/build-mcp.mjs"
   },
   "dependencies": {
